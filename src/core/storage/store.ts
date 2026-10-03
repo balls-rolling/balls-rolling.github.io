@@ -1,0 +1,75 @@
+import { createLocalStorageBackend, MemoryBackend, type StorageBackend } from "./backends";
+import type { KeyValueStore, Schema } from "./types";
+
+// Хранилище поверх бэкенда. Имя не `Storage`: идентификатор `Storage` занят
+// типом из lib.dom, и совпадение путало бы.
+
+/** Префикс пространства имён: отделяет наши ключи от чужих в том же origin. */
+const PREFIX = "mini-games:";
+
+const ENVELOPE_VERSION = 1;
+
+interface Envelope {
+  readonly v: number;
+  readonly data: unknown;
+}
+
+/** Конверт с версией — дешёвый задел под миграции. */
+function encode(value: unknown): string {
+  const envelope: Envelope = { v: ENVELOPE_VERSION, data: value };
+  return JSON.stringify(envelope);
+}
+
+/** Разбор конверта. Испорченные данные — не исключение, а «не найдено». */
+function decode(raw: string): { found: boolean; data: unknown } {
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    if (parsed !== null && typeof parsed === "object" && "data" in parsed) {
+      return { found: true, data: (parsed as Envelope).data };
+    }
+  } catch {
+    /* испорченный JSON — считаем ключ отсутствующим */
+  }
+  return { found: false, data: undefined };
+}
+
+export class KeyValueStoreImpl implements KeyValueStore {
+  readonly #backend: StorageBackend;
+
+  constructor(backend?: StorageBackend) {
+    this.#backend = backend ?? createLocalStorageBackend() ?? new MemoryBackend();
+  }
+
+  async read<T>(key: string, schema: Schema<T>): Promise<T> {
+    const raw = await this.#backend.get(PREFIX + key);
+    if (raw === null) return schema.defaults;
+
+    const { found, data } = decode(raw);
+    if (!found) return schema.defaults;
+
+    try {
+      return schema.parse(data);
+    } catch {
+      // Схема по контракту не бросает, но чтение не должно падать ни при чём.
+      return schema.defaults;
+    }
+  }
+
+  async write<T>(key: string, value: T): Promise<void> {
+    try {
+      await this.#backend.set(PREFIX + key, encode(value));
+    } catch {
+      // Запись best-effort: переполнение квоты не должно ронять приложение.
+      // Приватный режим отсекается ещё на инициализации (проба записи), так что
+      // сюда попадают только редкие случаи вроде исчерпанной квоты.
+    }
+  }
+
+  async remove(key: string): Promise<void> {
+    await this.#backend.remove(PREFIX + key);
+  }
+}
+
+export function createStore(backend?: StorageBackend): KeyValueStore {
+  return new KeyValueStoreImpl(backend);
+}

@@ -1,11 +1,72 @@
 <script setup lang="ts">
-// Слой 3: диалоги и окна, самый верхний. В фазе 03 сюда подключается
-// DialogManager; App.vue при этом не меняется.
+// Слой диалогов: единственный `<dialog>` платформы и стек экранов.
+//
+// Диалог всегда в DOM (не под `v-if`): иначе гонка «ref ещё null → showModal» и
+// пропадает анимация. Экраны переключаются через `v-show`: неактивные
+// скрываются, но не размонтируются — их состояние сохраняется.
+import { inject, nextTick, onMounted, onScopeDispose, ref, watch } from "vue";
+import { dialogKey } from "@/ui/dialog/key";
+
+const injected = inject(dialogKey);
+if (!injected) throw new Error("Менеджер диалогов не предоставлен");
+const manager = injected;
+
+const dialogElement = ref<HTMLDialogElement | null>(null);
+const screens = manager.screens;
+const canGoBack = manager.canGoBack;
+const title = manager.title;
+
+onMounted(() => {
+  if (dialogElement.value) manager.attach(dialogElement.value);
+});
+onScopeDispose(() => manager.detach());
+
+// `autofocus` в динамически создаваемом контенте ненадёжен, поэтому фокус
+// ставим вручную после смены экрана.
+watch(
+  () => screens.value.length,
+  async () => {
+    await nextTick();
+    focusActiveScreen();
+  },
+);
+
+function focusActiveScreen(): void {
+  const host = dialogElement.value;
+  if (!host) return;
+  const active = host.querySelector<HTMLElement>(".app-dialog__screen:last-of-type");
+  const target = active?.querySelector<HTMLElement>(
+    "button, input, select, textarea, [tabindex]:not([tabindex='-1'])",
+  );
+  target?.focus();
+}
 </script>
 
 <template>
   <section class="layer layer-dialogs">
-    <span class="layer-tag">3 · диалоги и окна</span>
-    <slot />
+    <dialog ref="dialogElement" class="app-dialog" aria-modal="true" closedby="none">
+      <header class="app-dialog__header">
+        <button
+          v-if="canGoBack"
+          class="app-dialog__back"
+          type="button"
+          aria-label="Назад"
+          @click="manager.back()"
+        >
+          ◀
+        </button>
+        <h2 class="app-dialog__title">{{ title }}</h2>
+      </header>
+      <div class="app-dialog__content">
+        <div
+          v-for="(screen, index) in screens"
+          :key="index"
+          class="app-dialog__screen"
+          v-show="index === screens.length - 1"
+        >
+          <component :is="screen.component" v-bind="screen.props ?? {}" />
+        </div>
+      </div>
+    </dialog>
   </section>
 </template>

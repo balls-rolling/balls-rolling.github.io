@@ -2,19 +2,58 @@ import { describe, expect, it, vi } from "vitest";
 import { createFormController } from "./controller";
 import type { FormSchema } from "./types";
 
+// Схема с вложенными группами: значения должны создаваться только для
+// контроллов-листьев, а текстовые узлы значения не несут.
 const schema: FormSchema = {
   id: "demo",
-  controls: [
-    { id: "name", kind: "text", label: "Имя", value: "Игрок" },
-    { id: "sound", kind: "toggle", label: "Звук", value: false, signals: ["change"] },
+  nodes: [
+    {
+      type: "group",
+      id: "g-main",
+      label: "Основное",
+      frame: true,
+      children: [
+        { type: "control", control: { id: "name", kind: "text", label: "Имя", value: "Игрок" } },
+        {
+          type: "group",
+          id: "g-advanced",
+          label: "Дополнительно",
+          collapsible: true,
+          open: false,
+          children: [
+            {
+              type: "control",
+              control: {
+                id: "sound",
+                kind: "toggle",
+                label: "Звук",
+                value: false,
+                signals: ["change"],
+              },
+            },
+            { type: "text", id: "hint", text: "Подсказка", multiline: true },
+          ],
+        },
+      ],
+    },
   ],
 };
 
 describe("createFormController", () => {
-  it("берёт начальные значения из схемы", () => {
+  it("разворачивает дерево и берёт значения вложенных контроллов", () => {
     const form = createFormController(schema);
+
     expect(form.getValue("name")).toBe("Игрок");
+    // Значение из вложенной группы тоже должно быть на месте.
+    expect(form.getValue("sound")).toBe(false);
     expect(form.getSnapshot().values).toEqual({ name: "Игрок", sound: false });
+  });
+
+  it("текстовый узел значения не создаёт", () => {
+    const form = createFormController(schema);
+
+    expect(form.getValue("hint")).toBeUndefined();
+    expect(Object.keys(form.getSnapshot().values)).toEqual(["name", "sound"]);
   });
 
   it("setValue и patch меняют только значения", () => {
@@ -29,13 +68,12 @@ describe("createFormController", () => {
     const form = createFormController(schema);
     const snapshot = form.getSnapshot();
 
-    // Мутация копии не влияет на контроллер.
     (snapshot.values as Record<string, unknown>).name = "взлом";
 
     expect(form.getValue("name")).toBe("Игрок");
   });
 
-  it("доставляет сигнал конкретного контролла", () => {
+  it("доставляет сигнал вложенного контролла", () => {
     const form = createFormController(schema);
     const listener = vi.fn();
     form.on("sound", "change", listener);
@@ -94,10 +132,20 @@ describe("createFormController", () => {
 
   it("неизвестный kind не считается ошибкой", () => {
     const unknown: FormSchema = {
-      controls: [{ id: "future", kind: "some-future-control", label: "Будущий" }],
+      nodes: [
+        {
+          type: "control",
+          control: { id: "future", kind: "some-future-control", label: "Будущий" },
+        },
+      ],
     };
 
     expect(() => createFormController(unknown)).not.toThrow();
     expect(createFormController(unknown).getValue("future")).toBeUndefined();
+  });
+
+  it("пустая схема не падает", () => {
+    const form = createFormController({ nodes: [] });
+    expect(form.getSnapshot().values).toEqual({});
   });
 });

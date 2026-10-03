@@ -4,7 +4,7 @@
 import LayerBoard from "@/ui/shell/LayerBoard.vue";
 import LayerGameUi from "@/ui/shell/LayerGameUi.vue";
 import LayerDialogs from "@/ui/shell/LayerDialogs.vue";
-import TestGamePanel from "@/ui/shell/TestGamePanel.vue";
+import SessionHost from "@/ui/shell/SessionHost.vue";
 import "@/ui/shell/layers.css";
 </script>
 
@@ -12,7 +12,7 @@ import "@/ui/shell/layers.css";
   <main class="app-root">
     <LayerBoard />
     <LayerGameUi>
-      <TestGamePanel />
+      <SessionHost />
     </LayerGameUi>
     <LayerDialogs />
   </main>

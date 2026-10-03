@@ -70,7 +70,7 @@ describe("TestGame", () => {
     const game = new TestGame();
     const form = game.getSetupForm();
 
-    expect(form.controls.length).toBeGreaterThan(0);
+    expect(form.nodes.length).toBeGreaterThan(0);
     // Схема — данные, а не компонент: значения должны быть сериализуемы.
     expect(() => JSON.stringify(form)).not.toThrow();
   });

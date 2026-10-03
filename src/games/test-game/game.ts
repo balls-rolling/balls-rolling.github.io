@@ -1,4 +1,10 @@
-import { Game, type GameState, type Move, type MoveResult } from "@/core/game";
+﻿import {
+  Game,
+  type GameEnvironment,
+  type GameState,
+  type Move,
+  type MoveResult,
+} from "@/core/game";
 import { definePropertySchema } from "@/core/player";
 import type { FormSchema } from "@/core/form";
 
@@ -35,17 +41,63 @@ const propertySchema = definePropertySchema([
   },
 ]);
 
-/** Преднастройка игры: декларативная схема, рендер — дело UI-слоя. */
+/**
+ * Преднастройка игры: декларативная схема, рендер — дело UI-слоя.
+ * Кнопки объявляет игра, а что делать на их нажатие — решает она же в
+ * `attachEnvironment`. Никаких флагов «нужна сеть»: есть кнопки лобби.
+ */
 const setupForm: FormSchema = {
   id: "test-game-setup",
-  controls: [
+  nodes: [
     {
-      id: "fast",
-      kind: "toggle",
-      label: "Быстрый режим",
-      icon: "bolt",
-      value: false,
-      signals: ["change"],
+      type: "group",
+      id: "t-modes",
+      label: "Режим",
+      frame: true,
+      orientation: "horizontal",
+      children: [
+        {
+          type: "control",
+          control: { id: "solo", kind: "button", label: "Один", signals: ["press"] },
+        },
+        {
+          type: "control",
+          control: {
+            id: "versus",
+            kind: "button",
+            label: "С компьютером",
+            signals: ["press"],
+          },
+        },
+      ],
+    },
+    {
+      type: "group",
+      id: "t-network",
+      label: "Сеть",
+      frame: true,
+      orientation: "horizontal",
+      children: [
+        {
+          type: "control",
+          control: { id: "host", kind: "button", label: "Создать", signals: ["press"] },
+        },
+        {
+          type: "control",
+          control: {
+            id: "join",
+            kind: "button",
+            label: "Присоединиться",
+            signals: ["press"],
+          },
+        },
+      ],
+    },
+    {
+      type: "text",
+      id: "t-note",
+      text: "Тестовая игра: проверяет меню, лобби и запуск сессии. В прод не идёт.",
+      multiline: true,
     },
   ],
 };
@@ -100,5 +152,40 @@ export class TestGame extends Game {
 
   override getSetupForm(): FormSchema {
     return setupForm;
+  }
+
+  /**
+   * Игра подписывается на сигналы своей формы и сама решает, что делать:
+   * локальный запуск или лобби. Платформа лишь предоставляет окружение.
+   */
+  override attachEnvironment(environment: GameEnvironment): void {
+    const { setup } = environment.game;
+
+    setup.on("solo", "press", () => {
+      void this.#launchLocal(environment, { humans: 1, computers: 0 });
+    });
+    setup.on("versus", "press", () => {
+      void this.#launchLocal(environment, { humans: 1, computers: 1 });
+    });
+    setup.on("host", "press", () => {
+      void this.#launchHost(environment);
+    });
+    setup.on("join", "press", () => {
+      // Сетевое лобби появится в фазе 10; отказ не должен ронять игру.
+      environment.lobby.showClient().catch(() => {});
+    });
+  }
+
+  async #launchLocal(
+    environment: GameEnvironment,
+    options: { humans: number; computers: number },
+  ): Promise<void> {
+    const players = await environment.lobby.defaultPlayers(options);
+    await environment.launch(players);
+  }
+
+  async #launchHost(environment: GameEnvironment): Promise<void> {
+    const players = await environment.lobby.showHost({ maxPlayers: 4, allowComputer: true });
+    if (players) await environment.launch(players);
   }
 }

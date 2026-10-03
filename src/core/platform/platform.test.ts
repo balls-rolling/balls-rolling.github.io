@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { Game, type GameEntry, type GameState, type Move, type MoveResult } from "../game";
 import { createStore } from "../storage";
-import { createPlatform, type GlobalSettings } from "./platform";
+import { createPlatform, GLOBAL_NAME_CONTROL, type GlobalSettings } from "./platform";
 
 // Минимальная игра: платформа не должна знать конкретных игр, поэтому в тесте
 // ей передаётся синтетическая запись. Проверка не зависит от содержимого
@@ -69,27 +69,51 @@ describe("Platform", () => {
 
   it("сохраняет глобальные настройки", async () => {
     const platform = createPlatform(createStore());
-    const settings: GlobalSettings = { name: "Гость" };
+    const settings: GlobalSettings = { name: "Гость", lastGameId: "test-game" };
 
     await platform.saveGlobalSettings(settings);
 
     await expect(platform.loadGlobalSettings()).resolves.toEqual(settings);
   });
 
-  it("возвращает имя по умолчанию, если настроек нет", async () => {
+  it("возвращает значения по умолчанию, если настроек нет", async () => {
     const platform = createPlatform(createStore());
 
     // Хранилище в памяти создаётся заново, поэтому данных нет.
-    await expect(platform.loadGlobalSettings()).resolves.toEqual({ name: "Игрок" });
+    await expect(platform.loadGlobalSettings()).resolves.toEqual({
+      name: "Игрок",
+      lastGameId: "",
+    });
+  });
+
+  it("порча lastGameId не ломает чтение", async () => {
+    const store = createStore();
+    const platform = createPlatform(store);
+    // Пишем данные в обход схемы: как будто в хранилище лежит старый формат.
+    await store.write("global", { name: "Гость", lastGameId: 42 });
+
+    const settings = await platform.loadGlobalSettings();
+
+    expect(settings.name).toBe("Гость");
+    expect(settings.lastGameId).toBe("");
   });
 
   it("настройки живут в переданном хранилище, а не в платформе", async () => {
     const store = createStore();
     const first = createPlatform(store);
-    await first.saveGlobalSettings({ name: "Гость" });
+    await first.saveGlobalSettings({ name: "Гость", lastGameId: "" });
 
     const second = createPlatform(store);
 
-    await expect(second.loadGlobalSettings()).resolves.toEqual({ name: "Гость" });
+    await expect(second.loadGlobalSettings()).resolves.toEqual({ name: "Гость", lastGameId: "" });
+  });
+
+  it("объявляет форму глобальных настроек метаданными", () => {
+    const platform = createPlatform();
+
+    const form = platform.globalForm();
+    const json = JSON.stringify(form);
+
+    expect(json).toContain(GLOBAL_NAME_CONTROL);
   });
 });

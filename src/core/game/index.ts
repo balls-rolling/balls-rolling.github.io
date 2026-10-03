@@ -1,5 +1,13 @@
-// Публичный API игр: записи реестра и базовый класс.
+// Публичный API игр: записи реестра, базовый класс и контракты окружения.
 export { Game } from "./game";
 export type { GameEntry, PluginEntry } from "./entry";
+export type {
+  GameEnvironment,
+  LaunchOptions,
+  Lobby,
+  LobbyOptions,
+  LocalPlayersOptions,
+  SessionAccess,
+} from "./environment";
 export type { GameState, Move, MoveResult } from "./move";
 export { listGames } from "./registry";

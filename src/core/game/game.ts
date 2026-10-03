@@ -1,5 +1,6 @@
 import type { FormSchema } from "../form";
 import type { PropertySchema } from "../player";
+import type { GameEnvironment } from "./environment";
 import type { GameState, Move, MoveResult } from "./move";
 
 // Базовый класс игры. Правила и очередь хода принадлежат игре (D3): в бильярде
@@ -44,6 +45,15 @@ export abstract class Game {
    * иначе игра впускала бы Vue в ядро. Рендер схемы — дело UI-слоя.
    */
   getSetupForm(): FormSchema {
-    return { controls: [] };
+    return { nodes: [] };
+  }
+
+  /**
+   * Получить окружение. Игра переопределяет метод, чтобы подписаться на сигналы
+   * своей формы и звать `launch` / лобби. По умолчанию ничего не делает:
+   * игре без преднастройки окружение не нужно.
+   */
+  attachEnvironment(_environment: GameEnvironment): void {
+    /* по умолчанию окружение не используется */
   }
 }

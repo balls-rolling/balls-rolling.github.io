@@ -1,6 +1,6 @@
-// Метаданные формы: описание контроллов без знания о том, как они рисуются.
-// Ядро отдаёт схему; конструктор (Vue, фаза 03) строит по ней форму и возвращает
-// управляющий объект. Здесь нет ни Vue, ни DOM.
+// Метаданные формы: описание того, что показать, без знания о том, как это
+// рисуется. Ядро отдаёт схему; конструктор (Vue, `src/ui/form/`) строит по ней
+// форму и возвращает управляющий объект. Здесь нет ни Vue, ни DOM.
 
 /**
  * Тип контролла. Строка открыта: новый контролл не должен требовать правки ядра.
@@ -13,11 +13,14 @@ export interface ControlOption {
   readonly label: string;
 }
 
+/**
+ * Контролл: минимальная единица ввода или действия.
+ * Иконка — нейтральный токен, НЕ Vue-компонент: иначе Vue протёк бы в ядро.
+ */
 export interface Control {
   readonly id: string;
   readonly kind: ControlKind;
   readonly label: string;
-  /** Нейтральный токен иконки, НЕ Vue-компонент: иначе Vue протёк бы в ядро. */
   readonly icon?: string;
   /** Начальное значение. Состояние формы хранится отдельно от схемы. */
   readonly value?: unknown;
@@ -29,9 +32,62 @@ export interface Control {
   readonly signals?: readonly string[];
 }
 
+export type FormOrientation = "vertical" | "horizontal";
+
+/** Контролл как узел формы. Значение адресуется по `control.id`. */
+export interface FormControl {
+  readonly type: "control";
+  readonly control: Control;
+}
+
+/** Текст: пояснение или подсказка. Значения не несёт. */
+export interface FormText {
+  readonly type: "text";
+  readonly id: string;
+  readonly text: string;
+  readonly multiline?: boolean;
+}
+
+/**
+ * Группа — рекурсивный узел: содержит любые узлы, включая другие группы.
+ * Заголовок группы — это её `label`, отдельного контролла-заголовка нет.
+ */
+export interface FormGroup {
+  readonly type: "group";
+  readonly id: string;
+  readonly label?: string;
+  readonly frame?: boolean;
+  readonly orientation?: FormOrientation;
+  /** Группа может сворачиваться. Нативно, через `<details>`. */
+  readonly collapsible?: boolean;
+  /** Состояние по умолчанию: развёрнута или свёрнута. */
+  readonly open?: boolean;
+  readonly children: readonly FormNode[];
+}
+
+export type FormNode = FormGroup | FormText | FormControl;
+
 export interface FormSchema {
   readonly id?: string;
-  readonly controls: readonly Control[];
+  readonly nodes: readonly FormNode[];
+}
+
+/** Ключ узла дерева: у контролла это id самого контролла, у прочих — свой id. */
+export function nodeKey(node: FormNode): string {
+  return node.type === "control" ? node.control.id : node.id;
+}
+
+/** Все контроллы дерева, в порядке обхода. Значения создаются только по ним. */
+export function collectControls(nodes: readonly FormNode[]): Control[] {
+  const result: Control[] = [];
+  const walk = (list: readonly FormNode[]): void => {
+    for (const node of list) {
+      if (node.type === "control") result.push(node.control);
+      else if (node.type === "group") walk(node.children);
+    }
+  };
+  walk(nodes);
+  return result;
 }
 
 export interface FormSnapshot {

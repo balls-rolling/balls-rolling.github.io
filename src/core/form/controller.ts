@@ -1,3 +1,4 @@
+import { collectControls } from "./types";
 import type { FormHandle, FormSchema, FormSnapshot, SignalListener } from "./types";
 
 // Контроллер формы: состояние и доставка сигналов. Рендером не занимается —
@@ -15,7 +16,9 @@ function subscriptionKey(selector: string, signal: string): string {
 
 export function createFormController(schema: FormSchema): FormHandle {
   const values: Record<string, unknown> = {};
-  for (const control of schema.controls) {
+  // Значения создаются только для листьев-контроллов: дерево разворачивается,
+  // иначе начальные значения вложенных полей не попали бы в состояние.
+  for (const control of collectControls(schema.nodes)) {
     values[control.id] = control.value;
   }
 

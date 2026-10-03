@@ -14,20 +14,13 @@
   color: var(--fg);
 }
 
-/* Метка слоя — диагностическая, она не должна ничего перехватывать. */
-.layer > .layer-tag {
-  padding: 4px 10px;
-  border-radius: var(--radius-sm);
-  border: 1px solid var(--line);
-  background: var(--card);
-  pointer-events: none;
-}
+/* Меток слоёв больше нет: их место заняло настоящее меню. Ярлыки были
+   диагностикой фаз 01–02. */
 
 /* Слой 1 — игровое поле, поверхность ввода. Принимает клики сам.
-   Канвас появится в фазе 05, здесь только граница слоя. */
+   Канвас появится в фазе 06, здесь только граница слоя. */
 .layer-board {
   z-index: 0;
-  background: var(--bg-1);
 }
 
 /* Слой 2 — игровой UI и общие функции: меню, во весь экран.
@@ -35,7 +28,6 @@
    интерактивные элементы внутри работают. */
 .layer-game-ui {
   z-index: 1;
-  background: var(--bg-2);
   pointer-events: none;
 }
 
@@ -43,13 +35,89 @@
   pointer-events: auto;
 }
 
-/* Слой 3 — диалоги и окна, самый верхний. Точка монтирования DialogManager
-   в фазе 03. Пустой контейнер не перехватывает клики: пока диалогов нет,
+/* Слой 3 — диалоги и окна, самый верхний. Точка монтирования менеджера
+   диалогов. Пустой контейнер не перехватывает клики: пока диалогов нет,
    он иначе закрыл бы всё поле. Блокировку под собой обеспечивает сам
    модальный <dialog> — showModal() выносит его в верхний слой браузера
    и делает всё вне него inert, z-index тут не участвует. */
 .layer-dialogs {
   z-index: 2;
-  background: var(--bg-3);
   pointer-events: none;
+}
+
+/* --- Диалог платформы --- */
+
+/* `pointer-events` — наследуемое свойство: без явного `auto` диалог унаследовал
+   бы `none` от слоя и стал бы неинтерактивным. */
+.app-dialog {
+  pointer-events: auto;
+  width: min(460px, calc(100vw - 32px));
+  max-height: calc(100dvh - 48px);
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--card);
+  color: var(--fg);
+  box-shadow: var(--shadow);
+}
+
+.app-dialog__header {
+  display: grid;
+  grid-template-columns: 40px 1fr 40px;
+  align-items: center;
+  padding: 12px;
+  border-bottom: 1px solid var(--line);
+}
+
+.app-dialog__title {
+  margin: 0;
+  font-size: 1.1rem;
+  text-align: center;
+}
+
+.app-dialog__back {
+  grid-column: 1;
+}
+
+.app-dialog__content {
+  padding: 14px;
+  max-height: min(65vh, 560px);
+  overflow: auto;
+}
+
+.app-dialog__screen {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* Анимация: `display` и `overlay` обязаны быть в списке перехода, иначе при
+   закрытии элемент мгновенно покидает верхний слой и переход не виден. */
+.app-dialog {
+  opacity: 0;
+  transform: translateY(8px) scale(0.98);
+  transition:
+    opacity 0.2s ease-out,
+    transform 0.2s ease-out,
+    display 0.2s ease-out allow-discrete,
+    overlay 0.2s ease-out allow-discrete;
+}
+
+.app-dialog[open] {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+}
+
+@starting-style {
+  .app-dialog[open] {
+    opacity: 0;
+    transform: translateY(8px) scale(0.98);
+  }
+}
+
+/* В WebKit `overlay` не поддержан: без фолбэка диалог «прыгает» при закрытии. */
+@supports not (overlay: auto) {
+  .app-dialog {
+    transition-duration: 0s;
+  }
 }

@@ -1,0 +1,56 @@
+/* Базовые стили: только браузерные умолчания. Контракт темы живёт в tokens.css. */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
+}
+
+html {
+  color-scheme: light dark;
+}
+
+body {
+  margin: 0;
+  font-family:
+    system-ui,
+    -apple-system,
+    "Segoe UI",
+    Roboto,
+    sans-serif;
+  font-size: 17px;
+  line-height: 1.45;
+  color: var(--fg);
+  overflow: hidden;
+  user-select: none;
+  -webkit-user-select: none;
+  cursor: default;
+  background: radial-gradient(120% 90% at 50% -10%, var(--glow) 0%, transparent 62%), var(--bg);
+}
+
+/* Поля ввода выделяются и ведут себя как поля ввода — исключение из
+   запрета выделения текста. */
+input,
+textarea,
+[contenteditable] {
+  user-select: text;
+  -webkit-user-select: text;
+  cursor: text;
+}
+
+button {
+  font: inherit;
+  cursor: default;
+}
+
+/* Корневой компонент занимает весь экран: оболочка платформы, три слоя
+   абсолютны внутри и заполняют его. */
+#app {
+  width: 100vw;
+  height: 100dvh;
+}

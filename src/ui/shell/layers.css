@@ -1,0 +1,55 @@
+/* Позиционирование трёх слоёв. Слой 3 (диалоги и окна) обязан быть выше
+   слоя 2 (игровой UI), а тот — выше слоя 1 (игровое поле). Порядок в DOM
+   зафиксирован в App.vue, z-index здесь — проверяемое выражение этого
+   требования, а не договорённость. */
+
+.layer {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: flex-start;
+  padding: 12px;
+  font-size: 0.8rem;
+  letter-spacing: 0.02em;
+  color: var(--fg);
+}
+
+/* Метка слоя — диагностическая, она не должна ничего перехватывать. */
+.layer > .layer-tag {
+  padding: 4px 10px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--line);
+  background: var(--card);
+  pointer-events: none;
+}
+
+/* Слой 1 — игровое поле, поверхность ввода. Принимает клики сам.
+   Канвас появится в фазе 05, здесь только граница слоя. */
+.layer-board {
+  z-index: 0;
+  background: var(--bg-1);
+}
+
+/* Слой 2 — игровой UI и общие функции: меню, во весь экран.
+   Контейнер не перехватывает клики, иначе закрыл бы игровое поле;
+   интерактивные элементы внутри работают. */
+.layer-game-ui {
+  z-index: 1;
+  background: var(--bg-2);
+  pointer-events: none;
+}
+
+.layer-game-ui > * {
+  pointer-events: auto;
+}
+
+/* Слой 3 — диалоги и окна, самый верхний. Точка монтирования DialogManager
+   в фазе 03. Пустой контейнер не перехватывает клики: пока диалогов нет,
+   он иначе закрыл бы всё поле. Блокировку под собой обеспечивает сам
+   модальный <dialog> — showModal() выносит его в верхний слой браузера
+   и делает всё вне него inert, z-index тут не участвует. */
+.layer-dialogs {
+  z-index: 2;
+  background: var(--bg-3);
+  pointer-events: none;
+}

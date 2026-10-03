@@ -31,11 +31,8 @@ export function applyPalette(): void {
   root.dataset.theme = dark ? "dark" : "light";
   const accent = readSystemAccent();
   root.style.setProperty("--accent", accent);
-  // --accent-base в исходнике брал производную от акцента, но функция
-  // oppositeMuted() была заглушкой и возвращала акцент без побочных
-  // эффектов (комментарий описывал идею, а не реализацию), поэтому здесь
-  // значение ставится напрямую, а приглушённые производные считает CSS.
-  root.style.setProperty("--accent-base", accent);
+  // Производные оттенки (приглушение, смешение) считает CSS через
+  // color-mix(in oklch, ...) от --accent, отдельная переменная не нужна.
   root.style.setProperty("--danger", DANGER);
   root.style.setProperty("--ok", OK);
 }

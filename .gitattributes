@@ -1,0 +1,14 @@
+# Нормализация переводов строк: в репозитории всегда LF, на рабочей копии
+# Windows переводит в CRLF. Без этого диффы засоряются ничего не значащими
+# изменениями целых файлов.
+* text=auto eol=lf
+
+# Двоичные файлы не трогаем
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.ico binary
+*.woff binary
+*.woff2 binary

@@ -10,11 +10,19 @@ const props = defineProps<{
   value: unknown;
   setValue: (id: string, value: unknown) => void;
   emit: (id: string, signal: string, payload?: unknown) => void;
+  disabled?: boolean;
 }>();
 
 const renderer = computed(() => rendererFor(props.control.kind));
 </script>
 
 <template>
-  <component :is="renderer" :control="control" :value="value" :set-value="setValue" :emit="emit" />
+  <component
+    :is="renderer"
+    :control="control"
+    :value="value"
+    :set-value="setValue"
+    :emit="emit"
+    :disabled="disabled"
+  />
 </template>

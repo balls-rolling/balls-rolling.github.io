@@ -11,6 +11,12 @@ export interface ScreenSpec {
   readonly component: Component;
   readonly props?: Record<string, unknown>;
   readonly title?: string;
+  /**
+   * Корневой экран можно закрыть целиком. Нужен там, где диалог открывается
+   * поверх игры (настройки из игрового меню): предыдущего экрана нет, но выход
+   * обязателен — иначе модальность превращается в ловушку.
+   */
+  readonly closable?: boolean;
   /** Управляющий объект экрана: `destroy` вызовется при снятии экрана. */
   readonly handle?: { destroy?: () => void };
 }
@@ -24,9 +30,17 @@ export class DialogManager {
   readonly #stack = new DialogStack<StackEntry>();
   readonly #element = shallowRef<HTMLDialogElement | null>(null);
   readonly #screens = shallowRef<readonly ScreenSpec[]>([]);
+  // Ссылка на обработчик `cancel`: без неё его нельзя снять в `detach`.
+  #cancelHandler: ((event: Event) => void) | null = null;
   // Вычисляем из реактивного списка экранов, а не из самого стека: стек — обычный
   // объект без реактивности, и `computed` над ним не пересчитывался бы.
-  readonly #canGoBack = computed(() => this.#screens.value.length > 1);
+  // Возврат есть со второго экрана; корневой экран даёт возврат, только если он
+  // помечен `closable` — тогда «назад» закрывает диалог.
+  readonly #canGoBack = computed(() => {
+    const screens = this.#screens.value;
+    if (screens.length > 1) return true;
+    return screens[0]?.closable === true;
+  });
   readonly #title = computed(
     () => this.#screens.value[this.#screens.value.length - 1]?.title ?? "",
   );
@@ -48,7 +62,8 @@ export class DialogManager {
   attach(element: HTMLDialogElement): void {
     this.#element.value = element;
     // Второй барьер: даже если `closedby` не сработает, `cancel` не закроет диалог.
-    element.addEventListener("cancel", (event) => event.preventDefault());
+    this.#cancelHandler = (event) => event.preventDefault();
+    element.addEventListener("cancel", this.#cancelHandler);
     // Экраны могли быть добавлены до монтирования слоя — тогда диалог ещё закрыт.
     if (this.#stack.depth > 0 && !element.open) {
       element.showModal();
@@ -56,6 +71,11 @@ export class DialogManager {
   }
 
   detach(): void {
+    const element = this.#element.value;
+    if (element && this.#cancelHandler) {
+      element.removeEventListener("cancel", this.#cancelHandler);
+    }
+    this.#cancelHandler = null;
     this.#element.value = null;
   }
 
@@ -74,8 +94,15 @@ export class DialogManager {
     }
   }
 
-  /** Вернуться на предыдущий экран. С корневого экрана возврата нет. */
+  /**
+   * Вернуться на предыдущий экран. С корневого экрана возврата нет, кроме
+   * случая, когда корень помечен `closable`: тогда «назад» закрывает диалог.
+   */
   back(): void {
+    if (this.#stack.depth <= 1) {
+      if (this.#screens.value[0]?.closable) this.close();
+      return;
+    }
     const removed = this.#stack.back();
     if (!removed) return;
     this.#sync();

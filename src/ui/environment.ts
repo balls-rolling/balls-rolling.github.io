@@ -29,10 +29,13 @@ export function createGameEnvironment(deps: EnvironmentDeps): GameEnvironment {
     lobby: deps.lobby,
 
     async launch(players: readonly PlayerInit[], options?: LaunchOptions): Promise<SessionAccess> {
+      // Прошлую сессию уничтожаем до создания новой (план T8, риск 5): иначе
+      // старая жила бы параллельно с созданием и могла оставить за собой таймеры.
+      deps.sessionHost.clear();
+
       const session = await deps.platform.createSession(deps.entry, players, options);
 
-      // Слот сам освободит прошлую сессию до того, как принять новую.
-      deps.sessionHost.set(session);
+      deps.sessionHost.set(session, deps.game);
       session.start();
 
       // Запомнить последнюю игру: по ней строится быстрый запуск на главном.

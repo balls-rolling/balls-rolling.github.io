@@ -3,6 +3,7 @@
 // одного нажатия: если есть последняя запущенная игра (или игра всего одна),
 // она выносится отдельной кнопкой.
 import { inject, onMounted, ref } from "vue";
+import { Gamepad2, Play, Settings } from "@lucide/vue";
 import type { GameEntry } from "@/core/game";
 import { dialogKey } from "@/ui/dialog/key";
 import { platformKey } from "@/ui/platform";
@@ -37,28 +38,24 @@ function openSettings(): void {
 </script>
 
 <template>
-  <div class="main-screen">
+  <div class="group">
     <button
       v-if="quickGame"
-      class="main-screen__primary"
+      class="btn btn--primary btn--lg"
       type="button"
+      :title="`Играть в «${quickGame.label}»`"
       @click="openGame(quickGame)"
     >
-      Играть в «{{ quickGame.label }}»
+      <Play class="icon" aria-hidden="true" />
+      <span class="btn__label">Играть в «{{ quickGame.label }}»</span>
     </button>
-    <button type="button" @click="openGames">Игры</button>
-    <button type="button" @click="openSettings">Настройки</button>
+    <button class="btn btn--secondary" type="button" title="Игры" @click="openGames">
+      <Gamepad2 class="icon" aria-hidden="true" />
+      <span class="btn__label">Игры</span>
+    </button>
+    <button class="btn btn--secondary" type="button" title="Настройки" @click="openSettings">
+      <Settings class="icon" aria-hidden="true" />
+      <span class="btn__label">Настройки</span>
+    </button>
   </div>
 </template>
-
-<style scoped>
-.main-screen {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.main-screen__primary {
-  font-weight: 700;
-}
-</style>

@@ -1,6 +1,7 @@
 import type { FormSchema } from "../form";
 import type { PropertySchema } from "../player";
 import type { GameEnvironment } from "./environment";
+import type { ExitCustomization, ExitRequest, GameMenuItem } from "./menu";
 import type { GameState, Move, MoveResult } from "./move";
 
 // Базовый класс игры. Правила и очередь хода принадлежат игре (D3): в бильярде
@@ -55,5 +56,44 @@ export abstract class Game {
    */
   attachEnvironment(_environment: GameEnvironment): void {
     /* по умолчанию окружение не используется */
+  }
+
+  /**
+   * Освободить окружение: игра отписывается от сигналов формы. Симметрично
+   * `attachEnvironment`; платформа зовёт метод, когда экран преднастройки
+   * снимается, чтобы подписки не остались висеть.
+   */
+  detachEnvironment(): void {
+    /* по умолчанию окружение не использовалось */
+  }
+
+  /**
+   * Пункты игрового меню, которые игра добавляет к системным. По умолчанию нет.
+   * Активацию пункта игра получает в `onGameMenuAction`.
+   */
+  getGameMenu(): readonly GameMenuItem[] {
+    return [];
+  }
+
+  /** Игра обрабатывает нажатие своего пункта меню. */
+  onGameMenuAction(_id: string): void {
+    /* по умолчанию пунктов нет */
+  }
+
+  /**
+   * Настроить системный диалог выхода. Игра не заменяет диалог: может подменить
+   * текст, добавить строку к заголовку и/или кнопку. `null` — без настроек.
+   */
+  onExitRequested(_request: ExitRequest): ExitCustomization | null {
+    return null;
+  }
+
+  /**
+   * Игра уведомляется о решении выхода: `"exit"` — системная кнопка, иначе —
+   * значение дополнительной кнопки, которую игра объявила сама. Предотвратить
+   * выход игра не может.
+   */
+  onExitResolved(_value: string): void {
+    /* по умолчанию реакция не нужна */
   }
 }

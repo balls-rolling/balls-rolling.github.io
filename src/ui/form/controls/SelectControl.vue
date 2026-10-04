@@ -6,6 +6,7 @@ const props = defineProps<{
   value: unknown;
   setValue: (id: string, value: unknown) => void;
   emit: (id: string, signal: string, payload?: unknown) => void;
+  disabled?: boolean;
 }>();
 
 function onChange(event: Event): void {
@@ -16,9 +17,9 @@ function onChange(event: Event): void {
 </script>
 
 <template>
-  <label class="form-control">
-    <span v-if="control.label" class="form-control__label">{{ control.label }}</span>
-    <select :value="value == null ? '' : String(value)" @change="onChange">
+  <label class="field">
+    <span v-if="control.label" class="field__label">{{ control.label }}</span>
+    <select :disabled="disabled" :value="value == null ? '' : String(value)" @change="onChange">
       <option v-for="option in control.options ?? []" :key="option.value" :value="option.value">
         {{ option.label }}
       </option>

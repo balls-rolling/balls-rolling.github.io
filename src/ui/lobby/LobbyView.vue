@@ -54,59 +54,67 @@ function confirm(): void {
 </script>
 
 <template>
-  <div class="lobby">
-    <ul class="lobby__players">
+  <div class="group">
+    <ul class="lobby__players list-reset">
       <li v-for="player in players" :key="player.id">
         <span>{{ player.name }}</span>
-        <span class="lobby__role">{{ player.agent === "computer" ? "компьютер" : "человек" }}</span>
-        <button type="button" :disabled="players.length <= 1" @click="remove(player.id)">
-          Убрать
+        <span class="lobby__role text-muted">{{
+          player.agent === "computer" ? "компьютер" : "человек"
+        }}</span>
+        <button
+          class="btn btn--ghost btn--sm"
+          type="button"
+          title="Убрать"
+          :disabled="players.length <= 1"
+          @click="remove(player.id)"
+        >
+          <span class="btn__label">Убрать</span>
         </button>
       </li>
     </ul>
 
     <div class="lobby__actions">
-      <button type="button" :disabled="players.length >= limit" @click="addHuman">
-        Добавить человека
+      <button
+        class="btn btn--secondary btn--sm"
+        type="button"
+        title="Добавить человека"
+        :disabled="players.length >= limit"
+        @click="addHuman"
+      >
+        <span class="btn__label">Добавить человека</span>
       </button>
       <button
+        class="btn btn--secondary btn--sm"
         type="button"
+        title="Добавить компьютер"
         :disabled="!allowComputer || players.length >= limit"
         @click="addComputer"
       >
-        Добавить компьютер
+        <span class="btn__label">Добавить компьютер</span>
       </button>
     </div>
 
-    <button class="lobby__start" type="button" @click="confirm">Начать</button>
+    <button class="btn btn--primary" type="button" title="Начать" @click="confirm">
+      <span class="btn__label">Начать</span>
+    </button>
   </div>
 </template>
 
 <style scoped>
-.lobby {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
 .lobby__players {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
+  gap: var(--space-2);
 }
 
 .lobby__players li {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-2);
 }
 
 .lobby__role {
-  opacity: 0.7;
-  font-size: 0.85em;
+  font-size: var(--fs-sm);
 }
 
 .lobby__players button {
@@ -115,6 +123,7 @@ function confirm(): void {
 
 .lobby__actions {
   display: flex;
-  gap: 8px;
+  flex-wrap: wrap;
+  gap: var(--space-2);
 }
 </style>

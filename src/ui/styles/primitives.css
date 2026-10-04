@@ -1,0 +1,185 @@
+/* UI-примитивы платформы: классы поверх токенов. Без JS-компонентов и без
+   внешних библиотек (D7). Компоненты берут эти классы, а не дублируют стили. */
+
+/* --- Кнопка ------------------------------------------------------------- */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  min-height: var(--control-md);
+  padding: 0 var(--space-4);
+  border: 1px solid transparent;
+  border-radius: var(--r-md);
+  font-size: var(--fs-md);
+  font-weight: 500;
+  line-height: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  min-width: 0;
+  cursor: default;
+  transition:
+    background-color var(--dur-fast) var(--ease),
+    border-color var(--dur-fast) var(--ease),
+    color var(--dur-fast) var(--ease),
+    filter var(--dur-fast) var(--ease);
+}
+
+/* Текст кнопки — блок с ellipsis: не вываливается и не расширяет кнопку. */
+.btn__label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.btn:disabled {
+  opacity: 0.5;
+}
+
+.btn--primary {
+  background: var(--accent-grad);
+  color: var(--accent-ink);
+  box-shadow: var(--accent-shadow);
+}
+
+.btn--primary:hover:not(:disabled) {
+  filter: brightness(1.06);
+}
+
+.btn--primary:active:not(:disabled) {
+  filter: brightness(0.96);
+}
+
+.btn--secondary {
+  background: var(--surface-2);
+  border-color: var(--border);
+  color: var(--on-surface);
+}
+
+.btn--secondary:hover:not(:disabled) {
+  background: color-mix(in oklch, var(--on-surface) 8%, var(--surface-2));
+}
+
+.btn--ghost {
+  background: transparent;
+  color: var(--on-surface);
+}
+
+.btn--ghost:hover:not(:disabled) {
+  background: var(--hover);
+}
+
+.btn--ghost:active:not(:disabled) {
+  background: var(--press);
+}
+
+.btn--danger {
+  background: var(--danger);
+  color: #ffffff;
+}
+
+.btn--danger:hover:not(:disabled) {
+  filter: brightness(1.06);
+}
+
+.btn--sm {
+  min-height: var(--control-sm);
+  padding: 0 var(--space-3);
+  font-size: var(--fs-sm);
+}
+
+.btn--lg {
+  min-height: var(--control-lg);
+  padding: 0 var(--space-5);
+}
+
+/* Квадратная кнопка под одну иконку. */
+.btn--icon {
+  width: var(--control-md);
+  min-width: var(--control-md);
+  padding: 0;
+}
+
+/* --- Поле --------------------------------------------------------------- */
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.field__label {
+  font-size: var(--fs-sm);
+  color: var(--on-surface-variant);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.field--inline {
+  flex-direction: row;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+/* --- Группа ------------------------------------------------------------- */
+
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  border: none;
+}
+
+.group--horizontal {
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+/* В горизонтальной группе дети делят ширину поровну базовым flex. */
+.group--horizontal > * {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+/* В вертикальном стеке кнопки занимают всю доступную ширину, в строке — по
+   содержимому. Кнопки формы в колонке и так растягиваются; здесь — списки. */
+.group > .btn,
+.group > li > .btn {
+  width: 100%;
+}
+
+/* --- Поверхность-карточка ---------------------------------------------- */
+
+.surface-card {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  box-shadow: var(--elev-3);
+}
+
+/* --- Прочее ------------------------------------------------------------- */
+
+.list-reset {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.text-muted {
+  color: var(--on-surface-variant);
+}
+
+.icon {
+  display: inline-flex;
+  width: 1em;
+  height: 1em;
+  flex: none;
+  color: currentColor;
+}

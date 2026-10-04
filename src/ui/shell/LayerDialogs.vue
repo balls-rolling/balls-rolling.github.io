@@ -5,7 +5,9 @@
 // пропадает анимация. Экраны переключаются через `v-show`: неактивные
 // скрываются, но не размонтируются — их состояние сохраняется.
 import { inject, nextTick, onMounted, onScopeDispose, ref, watch } from "vue";
+import { ArrowLeft } from "@lucide/vue";
 import { dialogKey } from "@/ui/dialog/key";
+import { NotificationBell, NotificationToasts } from "@/ui/notifications";
 
 const injected = inject(dialogKey);
 if (!injected) throw new Error("Менеджер диалогов не предоставлен");
@@ -21,8 +23,9 @@ onMounted(() => {
 });
 onScopeDispose(() => manager.detach());
 
-// `autofocus` в динамически создаваемом контенте ненадёжен, поэтому фокус
-// ставим вручную после смены экрана.
+// Управление фокусом (не оформление): `autofocus` в динамически создаваемом
+// контенте ненадёжен, поэтому при смене экрана переводим фокус внутрь вручную.
+// Вид индикатора фокуса задаёт CSS `:focus-visible` в base.css.
 watch(
   () => screens.value.length,
   async () => {
@@ -48,12 +51,12 @@ function focusActiveScreen(): void {
       <header class="app-dialog__header">
         <button
           v-if="canGoBack"
-          class="app-dialog__back"
+          class="app-dialog__back btn btn--icon btn--ghost"
           type="button"
           aria-label="Назад"
           @click="manager.back()"
         >
-          ◀
+          <ArrowLeft class="icon" aria-hidden="true" />
         </button>
         <h2 class="app-dialog__title">{{ title }}</h2>
       </header>
@@ -67,6 +70,8 @@ function focusActiveScreen(): void {
           <component :is="screen.component" v-bind="screen.props ?? {}" />
         </div>
       </div>
+      <NotificationBell />
+      <NotificationToasts />
     </dialog>
   </section>
 </template>

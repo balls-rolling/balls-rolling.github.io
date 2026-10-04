@@ -1,11 +1,25 @@
-// Палитра: направление от prefers-color-scheme, акцент системный либо фолбэк.
-// Порт js/theme/palette.js из исходной реализации на TypeScript.
-// Производные оттенки (--bg-*, --accent-hi/lo) вычисляются в CSS через
-// color-mix(in oklch, ...) — здесь задаётся только база.
+// Палитра: направление от prefers-color-scheme либо от явного выбора пользователя,
+// акцент системный либо фолбэк. Порт js/theme/palette.js из исходной реализации.
+// Производные оттенки вычисляются в CSS через color-mix(in oklch, ...) — здесь
+// задаётся только база.
 
 const FALLBACK_ACCENT = "#3da96a"; // приятный зелёный
-const DANGER = "#d64545";
-const OK = "#3da96a";
+
+/** Режим темы: системный или явный выбор пользователя. */
+export type ThemeMode = "system" | "light" | "dark";
+
+/**
+ * Разрешить режим в конкретную тему. Чистая функция: тестируется без DOM.
+ * `system` следует за системной схемой, явный режим её игнорирует.
+ */
+export function resolveTheme(mode: ThemeMode, systemDark: boolean): "light" | "dark" {
+  if (mode === "system") return systemDark ? "dark" : "light";
+  return mode;
+}
+
+function prefersDark(): boolean {
+  return matchMedia("(prefers-color-scheme: dark)").matches;
+}
 
 /** Читает системный акцент через скрытый пробник цвета `AccentColor`. */
 function readSystemAccent(): string {
@@ -24,21 +38,31 @@ function readSystemAccent(): string {
   return FALLBACK_ACCENT;
 }
 
-/** Применяет тему и базовые цвета к корню документа. */
-export function applyPalette(): void {
-  const dark = matchMedia("(prefers-color-scheme: dark)").matches;
+// Текущий режим — состояние модуля: один системный слушатель перечитывает его,
+// поэтому смена системы не перебивает явный выбор пользователя.
+let currentMode: ThemeMode = "system";
+
+/** Применить палитру по режиму (по умолчанию — текущему). */
+export function applyPalette(mode: ThemeMode = currentMode): void {
   const root = document.documentElement;
-  root.dataset.theme = dark ? "dark" : "light";
-  const accent = readSystemAccent();
-  root.style.setProperty("--accent", accent);
+  root.dataset.theme = resolveTheme(mode, prefersDark());
   // Производные оттенки (приглушение, смешение) считает CSS через
   // color-mix(in oklch, ...) от --accent, отдельная переменная не нужна.
-  root.style.setProperty("--danger", DANGER);
-  root.style.setProperty("--ok", OK);
+  root.style.setProperty("--accent", readSystemAccent());
 }
 
-/** Применяет палитру и следит за сменой системной темы. */
-export function watchPalette(): void {
-  applyPalette();
-  matchMedia("(prefers-color-scheme: dark)").addEventListener("change", applyPalette);
+/** Сменить режим темы в рантайме и сразу применить. */
+export function setThemeMode(mode: ThemeMode): void {
+  currentMode = mode;
+  applyPalette(mode);
+}
+
+/** Применить палитру и следить за сменой системной схемы. */
+export function watchPalette(mode: ThemeMode = "system"): void {
+  setThemeMode(mode);
+  // Один слушатель на всё время жизни приложения: он применяет текущий режим,
+  // поэтому при явном выборе смена системной схемы вид не меняет.
+  matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () =>
+    applyPalette(currentMode),
+  );
 }

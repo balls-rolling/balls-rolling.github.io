@@ -26,7 +26,6 @@ export interface SessionAccess {
  */
 export interface LobbyOptions {
   readonly maxPlayers?: number;
-  readonly minPlayers?: number;
   readonly allowComputer?: boolean;
 }
 

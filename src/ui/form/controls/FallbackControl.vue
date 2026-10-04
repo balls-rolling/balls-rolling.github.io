@@ -9,11 +9,10 @@ defineProps<{
   value: unknown;
   setValue: (id: string, value: unknown) => void;
   emit: (id: string, signal: string, payload?: unknown) => void;
+  disabled?: boolean;
 }>();
 </script>
 
 <template>
-  <p class="form-control form-control--unknown">
-    {{ control.label }} — неизвестный тип контролла «{{ control.kind }}»
-  </p>
+  <p class="text-muted">{{ control.label }} — неизвестный тип контролла «{{ control.kind }}»</p>
 </template>

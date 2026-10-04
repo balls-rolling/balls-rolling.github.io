@@ -4,6 +4,33 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="color-scheme" content="light dark" />
+    <!-- Тема до первого кадра: синхронный inline-скрипт (не module/defer) читает
+         сохранённый режим из того же ключа, что и хранилище (конверт {v,data}).
+         Без него при явной теме возможна вспышка неверной схемы. -->
+    <script>
+      (function () {
+        try {
+          var mode = "system";
+          var raw = localStorage.getItem("mini-games:global");
+          if (raw) {
+            var parsed = JSON.parse(raw);
+            var saved = parsed && parsed.data && parsed.data.themeMode;
+            if (saved === "light" || saved === "dark" || saved === "system") mode = saved;
+          }
+          var resolved =
+            mode === "system"
+              ? matchMedia("(prefers-color-scheme: dark)").matches
+                ? "dark"
+                : "light"
+              : mode;
+          document.documentElement.dataset.theme = resolved;
+          var meta = document.querySelector('meta[name="color-scheme"]');
+          if (meta) meta.setAttribute("content", resolved);
+        } catch (e) {
+          /* приватный режим или испорченные данные — остаётся системная схема */
+        }
+      })();
+    </script>
     <title>Платформа игр</title>
   </head>
   <body>

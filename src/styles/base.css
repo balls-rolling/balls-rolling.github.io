@@ -1,4 +1,5 @@
-/* Базовые стили: только браузерные умолчания. Контракт темы живёт в tokens.css. */
+/* Базовые стили: только браузерные умолчания и общие состояния.
+   Контракт темы живёт в tokens.css. */
 
 *,
 *::before,
@@ -15,6 +16,16 @@ html {
   color-scheme: light dark;
 }
 
+/* Явная схема следует за разрешённой темой (data-theme ставит inline-скрипт и
+   палитра): так нативные контролы и скроллбары совпадают с темой. */
+:root[data-theme="light"] {
+  color-scheme: light;
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+}
+
 body {
   margin: 0;
   font-family:
@@ -23,14 +34,15 @@ body {
     "Segoe UI",
     Roboto,
     sans-serif;
-  font-size: 17px;
-  line-height: 1.45;
-  color: var(--fg);
+  font-size: var(--fs-md);
+  line-height: var(--lh-base);
+  color: var(--on-surface);
   overflow: hidden;
   user-select: none;
   -webkit-user-select: none;
   cursor: default;
-  background: radial-gradient(120% 90% at 50% -10%, var(--glow) 0%, transparent 62%), var(--bg);
+  background:
+    radial-gradient(120% 90% at 50% -10%, var(--glow) 0%, transparent 62%), var(--surface);
 }
 
 /* Поля ввода выделяются и ведут себя как поля ввода — исключение из
@@ -43,9 +55,64 @@ textarea,
   cursor: text;
 }
 
-button {
+/* Сброс нативных кнопок и полей: дальше их оформляют UI-примитивы. */
+button,
+input,
+select,
+textarea {
   font: inherit;
+  color: inherit;
+}
+
+button {
   cursor: default;
+  background: none;
+  border: 1px solid transparent;
+  border-radius: var(--r-md);
+  transition:
+    background-color var(--dur-fast) var(--ease),
+    border-color var(--dur-fast) var(--ease),
+    color var(--dur-fast) var(--ease);
+}
+
+input,
+select,
+textarea {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  padding: var(--space-2) var(--space-3);
+  min-height: var(--control-md);
+  width: 100%;
+  min-width: 0;
+}
+
+/* Однострочные поля обрезают длинный текст многоточием, а не растягивают форму. */
+input,
+select {
+  text-overflow: ellipsis;
+}
+
+input[type="checkbox"],
+input[type="radio"] {
+  width: auto;
+}
+
+/* Единый индикатор фокуса для клавиатуры. */
+:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+/* Уважение к настройке «уменьшить движение». */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }
 
 /* Корневой компонент занимает весь экран: оболочка платформы, три слоя

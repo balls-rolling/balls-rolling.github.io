@@ -54,11 +54,10 @@ const setupForm: FormSchema = {
       id: "t-modes",
       label: "Режим",
       frame: true,
-      orientation: "horizontal",
       children: [
         {
           type: "control",
-          control: { id: "solo", kind: "button", label: "Один", signals: ["press"] },
+          control: { id: "solo", kind: "button", label: "Один", icon: "play", signals: ["press"] },
         },
         {
           type: "control",
@@ -66,6 +65,7 @@ const setupForm: FormSchema = {
             id: "versus",
             kind: "button",
             label: "С компьютером",
+            icon: "users",
             signals: ["press"],
           },
         },
@@ -80,7 +80,13 @@ const setupForm: FormSchema = {
       children: [
         {
           type: "control",
-          control: { id: "host", kind: "button", label: "Создать", signals: ["press"] },
+          control: {
+            id: "host",
+            kind: "button",
+            label: "Создать",
+            icon: "plus",
+            signals: ["press"],
+          },
         },
         {
           type: "control",
@@ -88,6 +94,7 @@ const setupForm: FormSchema = {
             id: "join",
             kind: "button",
             label: "Присоединиться",
+            icon: "list",
             signals: ["press"],
           },
         },
@@ -105,6 +112,9 @@ const setupForm: FormSchema = {
 export class TestGame extends Game {
   readonly id = "test-game";
   readonly label = "Тестовая игра";
+
+  /** Отписки от сигналов формы: снимаются в `detachEnvironment`. */
+  #unsubscribe: Array<() => void> = [];
 
   createInitialState(playerIds: readonly string[]): GameState {
     const moves: Record<string, number> = {};
@@ -161,19 +171,26 @@ export class TestGame extends Game {
   override attachEnvironment(environment: GameEnvironment): void {
     const { setup } = environment.game;
 
-    setup.on("solo", "press", () => {
-      void this.#launchLocal(environment, { humans: 1, computers: 0 });
-    });
-    setup.on("versus", "press", () => {
-      void this.#launchLocal(environment, { humans: 1, computers: 1 });
-    });
-    setup.on("host", "press", () => {
-      void this.#launchHost(environment);
-    });
-    setup.on("join", "press", () => {
-      // Сетевое лобби появится в фазе 10; отказ не должен ронять игру.
-      environment.lobby.showClient().catch(() => {});
-    });
+    this.#unsubscribe.push(
+      setup.on("solo", "press", () => {
+        void this.#launchLocal(environment, { humans: 1, computers: 0 });
+      }),
+      setup.on("versus", "press", () => {
+        void this.#launchLocal(environment, { humans: 1, computers: 1 });
+      }),
+      setup.on("host", "press", () => {
+        void this.#launchHost(environment);
+      }),
+      setup.on("join", "press", () => {
+        // Сетевое лобби появится в фазе 10; отказ не должен ронять игру.
+        environment.lobby.showClient().catch(() => {});
+      }),
+    );
+  }
+
+  override detachEnvironment(): void {
+    for (const off of this.#unsubscribe) off();
+    this.#unsubscribe = [];
   }
 
   async #launchLocal(

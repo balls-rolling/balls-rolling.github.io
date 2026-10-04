@@ -5,22 +5,68 @@
    потому что в CSS нельзя выставить атрибут по результату matchMedia. */
 
 :root {
-  --radius: 18px;
-  --radius-sm: 12px;
+  /* Радиусы: шкала + старые имена как алиасы (обратная совместимость). */
+  --r-sm: 8px;
+  --r-md: 12px;
+  --r-lg: 18px;
+  --r-xl: 28px;
+  --radius: var(--r-lg);
+  --radius-sm: var(--r-md);
+
+  /* Поверхности и текст: сырые значения + семантические имена. */
   --bg: #ffffff;
   --fg: #16181d;
   --card: rgba(255, 255, 255, 0.92);
   --line: rgba(20, 24, 32, 0.12);
-  --shadow: 0 18px 50px rgba(8, 12, 20, 0.18);
   --glow: rgba(90, 160, 220, 0.16);
 
-  --bg-1: rgba(255, 255, 255, 0.06);
-  --bg-2: rgba(255, 255, 255, 0.1);
-  --bg-3: rgba(255, 255, 255, 0.16);
-  --bg-m1: rgba(0, 0, 0, 0.04);
-  --bg-m2: rgba(0, 0, 0, 0.08);
-  --bg-m3: rgba(0, 0, 0, 0.14);
+  --surface: var(--bg);
+  --surface-2: var(--card);
+  --on-surface: var(--fg);
+  --on-surface-variant: color-mix(in oklch, var(--fg) 60%, transparent);
+  --border: var(--line);
 
+  /* Шкала отступов (4px-база). */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-7: 48px;
+  --space-8: 64px;
+
+  /* Типографическая шкала. */
+  --fs-xs: 12px;
+  --fs-sm: 14px;
+  --fs-md: 16px;
+  --fs-lg: 20px;
+  --fs-xl: 24px;
+  --fs-2xl: 32px;
+  --lh-tight: 1.25;
+  --lh-base: 1.45;
+
+  /* Высоты контролов. */
+  --control-sm: 32px;
+  --control-md: 40px;
+  --control-lg: 48px;
+
+  /* Elevation: 3 уровня; --shadow — алиас верхнего. */
+  --elev-1: 0 1px 2px rgba(8, 12, 20, 0.08);
+  --elev-2: 0 6px 18px rgba(8, 12, 20, 0.12);
+  --elev-3: 0 18px 50px rgba(8, 12, 20, 0.18);
+  --shadow: var(--elev-3);
+
+  /* Движение. */
+  --dur-fast: 150ms;
+  --dur-base: 250ms;
+  --ease: cubic-bezier(0.2, 0, 0, 1);
+
+  /* Оверлеи состояний (hover/press). */
+  --hover: color-mix(in oklch, var(--fg) 8%, transparent);
+  --press: color-mix(in oklch, var(--fg) 12%, transparent);
+
+  /* Акцент. */
   --accent: #3da96a;
   --accent-2: #2f8fe0;
   --danger: #d64545;
@@ -31,15 +77,16 @@
      системный акцент бывает сколь угодно тёмным, и текст сольётся.
      Нельзя background: inherit — он стирает градиент и гасит текст в тёмной теме. */
   --accent-ink: #06120c;
-  --accent-hi: color-mix(in oklch, var(--accent) 92%, white);
-  --accent-lo: color-mix(in oklch, var(--accent) 78%, var(--accent-2));
   --accent-grad: linear-gradient(
     180deg,
     color-mix(in oklch, var(--accent) 88%, white),
     color-mix(in oklch, var(--accent) 72%, var(--accent-2))
   );
   --accent-shadow: 0 8px 26px color-mix(in oklch, var(--accent) 30%, transparent);
-  --accent-ring: color-mix(in oklch, var(--accent) 22%, transparent);
+
+  /* Кольцо фокуса: тянем акцент к цвету текста, чтобы контраст ≥3:1 держался
+     и на светлом, и на тёмном системном акценте (WCAG 1.4.11). */
+  --focus-ring: color-mix(in oklch, var(--accent) 80%, var(--fg));
 }
 
 :root[data-theme="dark"] {
@@ -47,15 +94,11 @@
   --fg: #e9edf2;
   --card: rgba(20, 28, 38, 0.92);
   --line: rgba(140, 180, 220, 0.16);
-  --shadow: 0 18px 50px rgba(0, 0, 0, 0.55);
   --glow: rgba(90, 160, 220, 0.22);
 
-  --bg-1: rgba(255, 255, 255, 0.05);
-  --bg-2: rgba(255, 255, 255, 0.09);
-  --bg-3: rgba(255, 255, 255, 0.15);
-  --bg-m1: rgba(0, 0, 0, 0.18);
-  --bg-m2: rgba(0, 0, 0, 0.28);
-  --bg-m3: rgba(0, 0, 0, 0.4);
+  --elev-1: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --elev-2: 0 6px 18px rgba(0, 0, 0, 0.5);
+  --elev-3: 0 18px 50px rgba(0, 0, 0, 0.55);
 
   /* В рабочем режиме --accent перекрывается палитрой на <html> системным
      акцентом. Значение здесь — фолбэк на случай, если палитра не отработала. */

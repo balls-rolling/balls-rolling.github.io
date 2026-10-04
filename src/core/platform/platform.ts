@@ -5,6 +5,7 @@ import type { PlayerInit } from "../player";
 import { Session } from "../session";
 import type { SessionOptions } from "../session";
 import { createStore, type KeyValueStore, type Schema } from "../storage";
+import type { ThemeMode } from "../theme";
 
 // Корень платформы: реестр игр, цепочка `Platform → Game → Session` (D2) и
 // глобальные настройки. Конкретных игр не знает — работает только с записями.
@@ -17,29 +18,42 @@ export interface GlobalSettings {
   readonly name: string;
   /** Игра, запущенная последней: по ней строится быстрый запуск на главном. */
   readonly lastGameId: string;
+  /** Режим темы: системный либо явный выбор пользователя. */
+  readonly themeMode: ThemeMode;
 }
 
 const GLOBAL_KEY = "global";
 const DEFAULT_NAME = "Игрок";
+const DEFAULT_THEME_MODE: ThemeMode = "system";
 const NAME_MAX = 20;
 
+const THEME_MODES: readonly ThemeMode[] = ["system", "light", "dark"];
+
+function isThemeMode(value: unknown): value is ThemeMode {
+  return typeof value === "string" && (THEME_MODES as readonly string[]).includes(value);
+}
+
 const globalSchema: Schema<GlobalSettings> = {
-  defaults: { name: DEFAULT_NAME, lastGameId: "" },
+  defaults: { name: DEFAULT_NAME, lastGameId: "", themeMode: DEFAULT_THEME_MODE },
   parse(raw) {
     if (raw === null || typeof raw !== "object") {
-      return { name: DEFAULT_NAME, lastGameId: "" };
+      return { name: DEFAULT_NAME, lastGameId: "", themeMode: DEFAULT_THEME_MODE };
     }
     const value = raw as Partial<GlobalSettings>;
     return {
       name:
         typeof value.name === "string" && value.name ? value.name.slice(0, NAME_MAX) : DEFAULT_NAME,
       lastGameId: typeof value.lastGameId === "string" ? value.lastGameId : "",
+      themeMode: isThemeMode(value.themeMode) ? value.themeMode : DEFAULT_THEME_MODE,
     };
   },
 };
 
 /** Ключ контролла имени в форме глобальных настроек. */
 export const GLOBAL_NAME_CONTROL = "name";
+
+/** Ключ контролла темы в форме глобальных настроек. */
+export const GLOBAL_THEME_CONTROL = "theme";
 
 export interface CreateSessionOptions extends SessionOptions {
   /** Задержка хода компьютера. Существует ради тестов и отладки. */
@@ -76,8 +90,8 @@ export class Platform {
       nodes: [
         {
           type: "group",
-          id: "global-player",
-          label: "Игрок",
+          id: "global-critical",
+          label: "Критические",
           frame: true,
           children: [
             {
@@ -87,6 +101,29 @@ export class Platform {
                 kind: "text",
                 label: "Имя",
                 value: DEFAULT_NAME,
+                signals: ["change"],
+              },
+            },
+          ],
+        },
+        {
+          type: "group",
+          id: "global-general",
+          label: "Настройки",
+          frame: true,
+          children: [
+            {
+              type: "control",
+              control: {
+                id: GLOBAL_THEME_CONTROL,
+                kind: "select",
+                label: "Тема",
+                value: DEFAULT_THEME_MODE,
+                options: [
+                  { value: "system", label: "Системная" },
+                  { value: "light", label: "Светлая" },
+                  { value: "dark", label: "Тёмная" },
+                ],
                 signals: ["change"],
               },
             },

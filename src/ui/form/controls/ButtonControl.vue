@@ -1,17 +1,23 @@
 <script setup lang="ts">
 // Кнопка-действие: не меняет значение, а сообщает о нажатии. Какое действие
 // за этим стоит, решает тот, кто слушает сигналы контролла.
+import { computed } from "vue";
 import type { Control } from "@/core/form";
+import { iconFor } from "@/ui/icons";
 
 const props = defineProps<{
   control: Control;
   value: unknown;
   setValue: (id: string, value: unknown) => void;
   emit: (id: string, signal: string, payload?: unknown) => void;
+  disabled?: boolean;
 }>();
 
 // Кнопка умеет объявлять несколько сигналов, но нажатие — всегда одно.
 const SIGNAL = "press";
+
+// Иконка — по строковому токену; неизвестный токен даёт `null`, кнопка остаётся.
+const icon = computed(() => (props.control.icon ? iconFor(props.control.icon) : null));
 
 function onClick(): void {
   props.emit(props.control.id, SIGNAL);
@@ -19,10 +25,14 @@ function onClick(): void {
 </script>
 
 <template>
-  <button class="form-control__button" type="button" @click="onClick">
-    <span v-if="control.icon" class="form-control__icon" aria-hidden="true">{{
-      control.icon
-    }}</span>
-    {{ control.label }}
+  <button
+    class="btn btn--secondary"
+    type="button"
+    :disabled="disabled"
+    :title="control.label"
+    @click="onClick"
+  >
+    <component :is="icon" v-if="icon" class="icon" aria-hidden="true" />
+    <span class="btn__label">{{ control.label }}</span>
   </button>
 </template>

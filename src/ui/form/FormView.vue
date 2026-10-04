@@ -13,6 +13,8 @@ defineProps<{
   valueOf: (id: string) => unknown;
   setValue: (id: string, value: unknown) => void;
   emit: (id: string, signal: string, payload?: unknown) => void;
+  /** Идентификаторы контроллов, которые нужно заблокировать. */
+  disabled?: ReadonlySet<string>;
 }>();
 
 const open = reactive<Record<string, boolean>>({});
@@ -49,12 +51,24 @@ function textClasses(node: FormText): Record<string, boolean> {
         @toggle="onToggle(node, $event)"
       >
         <summary v-if="node.label" class="form-group__label">{{ node.label }}</summary>
-        <FormView :nodes="node.children" :value-of="valueOf" :set-value="setValue" :emit="emit" />
+        <FormView
+          :nodes="node.children"
+          :value-of="valueOf"
+          :set-value="setValue"
+          :emit="emit"
+          :disabled="disabled"
+        />
       </details>
 
       <fieldset v-else-if="node.type === 'group'" class="form-group" :class="classes(node)">
         <legend v-if="node.label" class="form-group__label">{{ node.label }}</legend>
-        <FormView :nodes="node.children" :value-of="valueOf" :set-value="setValue" :emit="emit" />
+        <FormView
+          :nodes="node.children"
+          :value-of="valueOf"
+          :set-value="setValue"
+          :emit="emit"
+          :disabled="disabled"
+        />
       </fieldset>
 
       <!-- Текст: пояснение, значения не несёт -->
@@ -69,6 +83,7 @@ function textClasses(node: FormText): Record<string, boolean> {
         :value="valueOf(node.control.id)"
         :set-value="setValue"
         :emit="emit"
+        :disabled="disabled?.has(node.control.id) ?? false"
       />
     </template>
   </div>
@@ -78,22 +93,22 @@ function textClasses(node: FormText): Record<string, boolean> {
 .form-view {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--space-3);
 }
 
 .form-group {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--space-3);
   margin: 0;
   padding: 0;
   border: none;
 }
 
 .form-group--framed {
-  padding: 10px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-sm);
+  padding: var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
 }
 
 .form-group--horizontal {
@@ -102,13 +117,31 @@ function textClasses(node: FormText): Record<string, boolean> {
   align-items: center;
 }
 
+/* Вложенный FormView внутри группы не создаёт своего бокса: flex-контейнером
+   группы становится сам `fieldset`, и «горизонтально/вертикально» управляет
+   именно он. Селекторы ниже всё ещё видят `.form-view` как родителя (DOM), но
+   раскладку ведёт группа. */
+.form-group > .form-view {
+  display: contents;
+}
+
+/* В горизонтальной группе все контроллы делят ширину поровну базовым flex
+   (кнопки, поля, вложенные группы). */
+.form-group--horizontal > .form-view > * {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
 .form-group__label {
   font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .form-text {
   margin: 0;
-  opacity: 0.75;
+  color: var(--on-surface-variant);
 }
 
 .form-text--multiline {

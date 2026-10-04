@@ -4,7 +4,7 @@
 // решает, что делать (запустить игру, открыть лобби).
 import { onMounted } from "vue";
 import { inject } from "vue";
-import { createFormController } from "@/core/form";
+import type { FormHandle } from "@/core/form";
 import type { Game, GameEntry } from "@/core/game";
 import { dialogKey } from "@/ui/dialog/key";
 import { createGameEnvironment } from "@/ui/environment";
@@ -13,7 +13,7 @@ import { createLocalLobby } from "@/ui/lobby";
 import { platformKey } from "@/ui/platform";
 import { sessionHostKey } from "@/ui/session-host";
 
-const props = defineProps<{ entry: GameEntry; game: Game }>();
+const props = defineProps<{ entry: GameEntry; game: Game; setup: FormHandle }>();
 
 const injectedPlatform = inject(platformKey);
 if (!injectedPlatform) throw new Error("Платформа не предоставлена");
@@ -27,16 +27,16 @@ const injectedHost = inject(sessionHostKey);
 if (!injectedHost) throw new Error("Слот сессии не предоставлен");
 const sessionHost = injectedHost;
 
-// Игра уже создана тем, кто открыл экран, поэтому форма строится синхронно.
-const setup = createFormController(props.game.getSetupForm());
-const { valueOf, setValue } = useFieldValue(setup);
+// Форму создаёт composition root и владеет её жизненным циклом: он передаёт
+// `handle.destroy` в менеджер диалогов. Здесь только реактивный мост к шаблону.
+const { valueOf, setValue } = useFieldValue(props.setup);
 
 onMounted(() => {
   const lobby = createLocalLobby({ platform, dialog });
   const environment = createGameEnvironment({
     entry: props.entry,
     game: props.game,
-    setup,
+    setup: props.setup,
     lobby,
     sessionHost,
     platform,
@@ -48,7 +48,7 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="setup-screen">
+  <div class="group">
     <FormView
       :nodes="game.getSetupForm().nodes"
       :value-of="valueOf"
@@ -57,11 +57,3 @@ onMounted(() => {
     />
   </div>
 </template>
-
-<style scoped>
-.setup-screen {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-</style>

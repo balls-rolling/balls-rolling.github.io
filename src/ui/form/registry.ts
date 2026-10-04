@@ -12,7 +12,7 @@ import ToggleControl from "./controls/ToggleControl.vue";
 // Компоненты обёрнуты `markRaw`: если реестр или выбранный компонент попадёт в
 // реактивную структуру, Vue попытается сделать его реактивным и предупредит.
 // Объект реестра заморожен, чтобы его нельзя было случайно изменить.
-export const renderers: Readonly<Record<string, Component>> = Object.freeze({
+const renderers: Readonly<Record<string, Component>> = Object.freeze({
   text: markRaw(TextControl),
   number: markRaw(NumberControl),
   toggle: markRaw(ToggleControl),

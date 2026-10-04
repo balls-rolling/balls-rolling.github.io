@@ -13,26 +13,12 @@ const games: readonly GameEntry[] = platform.listGames();
 </script>
 
 <template>
-  <ul class="games-screen">
+  <ul class="group list-reset">
     <li v-for="game in games" :key="game.id">
-      <button type="button" @click="openGame(game)">{{ game.label }}</button>
+      <button class="btn btn--secondary" type="button" :title="game.label" @click="openGame(game)">
+        <span class="btn__label">{{ game.label }}</span>
+      </button>
     </li>
   </ul>
-  <p v-if="games.length === 0" class="games-screen__empty">Игр пока нет</p>
+  <p v-if="games.length === 0" class="text-muted">Игр пока нет</p>
 </template>
-
-<style scoped>
-.games-screen {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.games-screen__empty {
-  margin: 0;
-  opacity: 0.7;
-}
-</style>

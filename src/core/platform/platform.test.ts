@@ -1,7 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { Game, type GameEntry, type GameState, type Move, type MoveResult } from "../game";
 import { createStore } from "../storage";
-import { createPlatform, GLOBAL_NAME_CONTROL, type GlobalSettings } from "./platform";
+import {
+  createPlatform,
+  GLOBAL_NAME_CONTROL,
+  GLOBAL_THEME_CONTROL,
+  type GlobalSettings,
+} from "./platform";
 
 // Минимальная игра: платформа не должна знать конкретных игр, поэтому в тесте
 // ей передаётся синтетическая запись. Проверка не зависит от содержимого
@@ -69,7 +74,7 @@ describe("Platform", () => {
 
   it("сохраняет глобальные настройки", async () => {
     const platform = createPlatform(createStore());
-    const settings: GlobalSettings = { name: "Гость", lastGameId: "test-game" };
+    const settings: GlobalSettings = { name: "Гость", lastGameId: "test-game", themeMode: "dark" };
 
     await platform.saveGlobalSettings(settings);
 
@@ -83,6 +88,7 @@ describe("Platform", () => {
     await expect(platform.loadGlobalSettings()).resolves.toEqual({
       name: "Игрок",
       lastGameId: "",
+      themeMode: "system",
     });
   });
 
@@ -96,16 +102,21 @@ describe("Platform", () => {
 
     expect(settings.name).toBe("Гость");
     expect(settings.lastGameId).toBe("");
+    expect(settings.themeMode).toBe("system");
   });
 
   it("настройки живут в переданном хранилище, а не в платформе", async () => {
     const store = createStore();
     const first = createPlatform(store);
-    await first.saveGlobalSettings({ name: "Гость", lastGameId: "" });
+    await first.saveGlobalSettings({ name: "Гость", lastGameId: "", themeMode: "system" });
 
     const second = createPlatform(store);
 
-    await expect(second.loadGlobalSettings()).resolves.toEqual({ name: "Гость", lastGameId: "" });
+    await expect(second.loadGlobalSettings()).resolves.toEqual({
+      name: "Гость",
+      lastGameId: "",
+      themeMode: "system",
+    });
   });
 
   it("объявляет форму глобальных настроек метаданными", () => {
@@ -115,5 +126,17 @@ describe("Platform", () => {
     const json = JSON.stringify(form);
 
     expect(json).toContain(GLOBAL_NAME_CONTROL);
+    expect(json).toContain(GLOBAL_THEME_CONTROL);
+  });
+
+  it("валидирует режим темы, откатывая мусор к системному", async () => {
+    const store = createStore();
+    const platform = createPlatform(store);
+
+    await store.write("global", { name: "Гость", themeMode: "neon" });
+    await expect(platform.loadGlobalSettings()).resolves.toMatchObject({ themeMode: "system" });
+
+    await platform.saveGlobalSettings({ name: "Гость", lastGameId: "", themeMode: "light" });
+    await expect(platform.loadGlobalSettings()).resolves.toMatchObject({ themeMode: "light" });
   });
 });

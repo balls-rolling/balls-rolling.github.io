@@ -1,6 +1,6 @@
 // Публичный API игр: записи реестра, базовый класс и контракты окружения.
 export { Game } from "./game";
-export type { GameEntry, PluginEntry } from "./entry";
+export type { GameEntry } from "./entry";
 export type {
   GameEnvironment,
   LaunchOptions,
@@ -10,4 +10,5 @@ export type {
   SessionAccess,
 } from "./environment";
 export type { GameState, Move, MoveResult } from "./move";
+export type { ExitCustomization, ExitRequest, GameMenuItem } from "./menu";
 export { listGames } from "./registry";

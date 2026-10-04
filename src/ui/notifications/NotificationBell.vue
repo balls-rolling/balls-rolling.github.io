@@ -75,7 +75,9 @@ onUnmounted(() => {
       :aria-label="unread ? `Уведомления, непрочитанных: ${unread}` : 'Уведомления'"
       :aria-expanded="open"
     >
-      <Bell class="icon" aria-hidden="true" />
+      <span class="bell__content">
+        <Bell class="icon" aria-hidden="true" />
+      </span>
       <span v-if="unread" class="bell__badge" aria-hidden="true">{{ unread }}</span>
     </button>
 
@@ -124,6 +126,17 @@ onUnmounted(() => {
   background: var(--surface-2);
   border: 1px solid var(--border);
   box-shadow: var(--elev-2);
+  /* Базовый `.btn` обрезает содержимое (`overflow: hidden`) — здесь это не
+     годится: бейдж выходит за край. Обрезаем только внутренний блок. */
+  overflow: visible;
+}
+
+/* Содержимое кнопки в подблоке: именно его можно обрезать, не задевая бейдж. */
+.bell__content {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
 }
 
 .bell__button:hover {

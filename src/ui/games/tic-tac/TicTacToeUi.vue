@@ -6,7 +6,10 @@ import { computed, inject, onScopeDispose, ref, watch } from "vue";
 import type { SessionSnapshot } from "@/core/session";
 import type { Point } from "@/core/viewport";
 import { boardInputKey, type BoardPickHandler } from "@/ui/board-input";
+import { dialogKey } from "@/ui/dialog/key";
+import { MainScreen } from "@/ui/screens";
 import { sessionHostKey } from "@/ui/session-host";
+import ResultDialog from "./ResultDialog.vue";
 
 const injectedHost = inject(sessionHostKey);
 if (!injectedHost) throw new Error("Слот сессии не предоставлен");
@@ -15,6 +18,10 @@ const sessionHost = injectedHost;
 const injectedInput = inject(boardInputKey);
 if (!injectedInput) throw new Error("Ввод поля не предоставлен");
 const boardInput = injectedInput;
+
+const injectedDialog = inject(dialogKey);
+if (!injectedDialog) throw new Error("Менеджер диалогов не предоставлен");
+const dialog = injectedDialog;
 
 const snapshot = ref<SessionSnapshot | null>(null);
 let unsubscribe: (() => void) | null = null;
@@ -42,9 +49,40 @@ const onPick: BoardPickHandler = (cell: Point) => {
 };
 
 boardInput.handler.value = onPick;
+boardInput.cursor.value = "default";
 onScopeDispose(() => {
   unsubscribe?.();
   if (boardInput.handler.value === onPick) boardInput.handler.value = null;
+  boardInput.cursor.value = "default";
+});
+
+// Партия завершилась — показываем итог с «Реванш»/«Выйти».
+function openResult(): void {
+  const snap = snapshot.value;
+  if (!snap) return;
+  const winner = snap.winnerId
+    ? (snap.players.find((player) => player.id === snap.winnerId)?.name ?? null)
+    : null;
+  dialog.show({
+    component: ResultDialog,
+    title: "Партия окончена",
+    props: {
+      message: winner ? `Победил ${winner}` : "Ничья",
+      onResolve: (value: string) => {
+        dialog.close();
+        if (value === "rematch") {
+          sessionHost.session.value?.restart();
+          return;
+        }
+        sessionHost.clear();
+        dialog.show({ component: MainScreen, title: "Меню" });
+      },
+    },
+  });
+}
+
+watch(snapshot, (next, previous) => {
+  if (next?.state === "finished" && previous?.state !== "finished") openResult();
 });
 
 const currentName = computed(() => {

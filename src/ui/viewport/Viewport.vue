@@ -30,8 +30,12 @@ const props = withDefaults(
     showGrid?: boolean;
     blocked?: boolean;
     initialCamera?: Camera;
+    /** Показывать служебные элементы (зум, HUD). В демо их нет. */
+    controls?: boolean;
+    /** Стиль курсора поля; игра может переопределить. */
+    cursor?: string;
   }>(),
-  { showGrid: true, blocked: false },
+  { showGrid: true, blocked: false, controls: true, cursor: "default" },
 );
 
 const emit = defineEmits<{ pick: [point: Point] }>();
@@ -42,7 +46,8 @@ const canvas = useTemplateRef<HTMLCanvasElement>("canvas");
 const camera = ref<Camera>({ ...(props.initialCamera ?? DEFAULT_CAMERA) });
 const size = ref<Size>({ width: 0, height: 0 });
 const dpr = ref(1);
-const hudVisible = ref(true);
+const hudVisible = ref(false);
+const dragging = ref(false);
 
 // Цвета читаются из токенов при монтировании и на смену темы, а не каждый кадр:
 // getComputedStyle в цикле кадра — принудительный reflow (см. бэклог).
@@ -143,6 +148,7 @@ function toCanvasPoint(event: PointerEvent | WheelEvent): Point {
 function onPointerDown(event: PointerEvent): void {
   if (event.button !== 0 || !canvas.value) return;
   canvas.value.setPointerCapture(event.pointerId);
+  dragging.value = true;
   drag = { sx: event.clientX, sy: event.clientY, camera: camera.value, moved: 0 };
 }
 
@@ -159,6 +165,7 @@ function onPointerUp(event: PointerEvent): void {
   if (event.button !== 0) return;
   const wasDrag = drag !== null && drag.moved > PICK_THRESHOLD;
   drag = null;
+  dragging.value = false;
   canvas.value?.releasePointerCapture(event.pointerId);
   if (wasDrag || props.blocked) return;
 
@@ -168,6 +175,7 @@ function onPointerUp(event: PointerEvent): void {
 
 function onPointerCancel(): void {
   drag = null;
+  dragging.value = false;
 }
 
 function onWheel(event: WheelEvent): void {
@@ -247,49 +255,52 @@ defineExpose({
     <canvas
       ref="canvas"
       class="viewport__canvas"
+      :style="{ cursor: dragging ? 'grabbing' : props.cursor }"
       @pointerdown="onPointerDown"
       @pointermove="onPointerMove"
       @pointerup="onPointerUp"
       @pointercancel="onPointerCancel"
     />
 
-    <div class="viewport__zoom">
-      <button
-        class="viewport__button btn btn--icon btn--ghost"
-        type="button"
-        aria-label="Отдалить"
-        title="Отдалить"
-        @click="zoomAtCenter(1 / ZOOM_STEP)"
-      >
-        <component :is="iconFor('zoom-out')" class="icon" aria-hidden="true" />
-      </button>
-      <button
-        class="viewport__button btn btn--icon btn--ghost"
-        type="button"
-        aria-label="Приблизить"
-        title="Приблизить"
-        @click="zoomAtCenter(ZOOM_STEP)"
-      >
-        <component :is="iconFor('zoom-in')" class="icon" aria-hidden="true" />
-      </button>
-    </div>
+    <template v-if="controls">
+      <div class="viewport__zoom">
+        <button
+          class="viewport__button btn btn--icon btn--ghost"
+          type="button"
+          aria-label="Отдалить"
+          title="Отдалить"
+          @click="zoomAtCenter(1 / ZOOM_STEP)"
+        >
+          <component :is="iconFor('zoom-out')" class="icon" aria-hidden="true" />
+        </button>
+        <button
+          class="viewport__button btn btn--icon btn--ghost"
+          type="button"
+          aria-label="Приблизить"
+          title="Приблизить"
+          @click="zoomAtCenter(ZOOM_STEP)"
+        >
+          <component :is="iconFor('zoom-in')" class="icon" aria-hidden="true" />
+        </button>
+      </div>
 
-    <div v-if="hudVisible" class="viewport__hud" aria-hidden="true">
-      <span>x {{ camera.x.toFixed(1) }} · y {{ camera.y.toFixed(1) }}</span>
-      <span>scale {{ camera.scale.toFixed(1) }} · dpr {{ dpr }}</span>
-      <span>{{ size.width }}×{{ size.height }}</span>
-    </div>
+      <div v-if="hudVisible" class="viewport__hud" aria-hidden="true">
+        <span>x {{ camera.x.toFixed(1) }} · y {{ camera.y.toFixed(1) }}</span>
+        <span>scale {{ camera.scale.toFixed(1) }} · dpr {{ dpr }}</span>
+        <span>{{ size.width }}×{{ size.height }}</span>
+      </div>
 
-    <button
-      class="viewport__hud-toggle btn btn--icon btn--ghost"
-      type="button"
-      :aria-pressed="hudVisible"
-      aria-label="Отладочный оверлей"
-      title="Отладочный оверлей"
-      @click="toggleHud"
-    >
-      <component :is="iconFor('hud')" class="icon" aria-hidden="true" />
-    </button>
+      <button
+        class="viewport__hud-toggle btn btn--icon btn--ghost"
+        type="button"
+        :aria-pressed="hudVisible"
+        aria-label="Отладочный оверлей"
+        title="Отладочный оверлей"
+        @click="toggleHud"
+      >
+        <component :is="iconFor('hud')" class="icon" aria-hidden="true" />
+      </button>
+    </template>
   </div>
 </template>
 
@@ -306,11 +317,6 @@ defineExpose({
   width: 100%;
   height: 100%;
   touch-action: none;
-  cursor: grab;
-}
-
-.viewport__canvas:active {
-  cursor: grabbing;
 }
 
 .viewport__zoom {

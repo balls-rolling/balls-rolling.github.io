@@ -2,7 +2,7 @@
 // Слой 1: игровое поле. Переиспользуемый canvas-Viewport рисует фон, сетку и
 // делегирует отрисовку активной игры; выбор клетки уходит в UI игры через сервис
 // `boardInput`, потому что форма хода платформе неизвестна.
-import { inject, onScopeDispose, useTemplateRef, watch } from "vue";
+import { computed, inject, onScopeDispose, useTemplateRef, watch } from "vue";
 import type { GameRenderFrame } from "@/core/game";
 import type { Point } from "@/core/viewport";
 import { boardInputKey } from "@/ui/board-input";
@@ -18,6 +18,10 @@ if (!injectedInput) throw new Error("Ввод поля не предоставл
 const boardInput = injectedInput;
 
 const viewport = useTemplateRef<InstanceType<typeof Viewport>>("viewport");
+
+// В демо служебные элементы поля (зум, HUD) не показываем — только партия.
+const isDemo = computed(() => sessionHost.session.value?.isDemo ?? false);
+const cursor = computed(() => boardInput.cursor.value);
 
 function renderBoard(frame: GameRenderFrame): void {
   sessionHost.session.value?.draw(frame);
@@ -45,7 +49,13 @@ onScopeDispose(() => unsubscribe?.());
 
 <template>
   <section class="layer layer-board">
-    <Viewport ref="viewport" :render="renderBoard" @pick="onPick" />
+    <Viewport
+      ref="viewport"
+      :render="renderBoard"
+      :controls="!isDemo"
+      :cursor="cursor"
+      @pick="onPick"
+    />
     <slot />
   </section>
 </template>

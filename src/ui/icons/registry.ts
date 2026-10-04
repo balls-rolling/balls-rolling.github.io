@@ -1,6 +1,7 @@
 import { markRaw, type Component } from "vue";
 import {
   ArrowLeft,
+  Bug,
   Check,
   Gamepad2,
   List,
@@ -10,6 +11,8 @@ import {
   Settings,
   Users,
   X,
+  ZoomIn,
+  ZoomOut,
 } from "@lucide/vue";
 
 // Реестр иконок: строковый токен (нейтральный для ядра) → Vue-компонент.
@@ -28,6 +31,9 @@ const icons: Readonly<Record<string, Component>> = Object.freeze({
   plus: markRaw(Plus),
   remove: markRaw(X),
   check: markRaw(Check),
+  "zoom-in": markRaw(ZoomIn),
+  "zoom-out": markRaw(ZoomOut),
+  hud: markRaw(Bug),
 });
 
 /** Компонент иконки по токену или `null`, если токен неизвестен. */

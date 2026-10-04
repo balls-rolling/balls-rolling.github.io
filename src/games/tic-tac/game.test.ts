@@ -1,4 +1,5 @@
 ﻿import { describe, expect, it } from "vitest";
+import type { FormNode } from "@/core/form";
 import type { GameRenderFrame } from "@/core/game";
 import { TicTacToeGame } from "./game";
 import { key } from "./rules";
@@ -139,6 +140,19 @@ describe("TicTacToeGame", () => {
     expect(demo!.every((p) => p.agent === "computer")).toBe(true);
     expect(game.level).toBe(2);
     expect(game.missWin).toBe(false);
+  });
+
+  it("преднастройка содержит режимы «С компьютером» и «Двое за экраном»", () => {
+    const ids: string[] = [];
+    const walk = (nodes: readonly FormNode[]): void => {
+      for (const node of nodes) {
+        if (node.type === "control") ids.push(node.control.id);
+        else if (node.type === "group") walk(node.children);
+      }
+    };
+    walk(freshGame().getSetupForm().nodes);
+    expect(ids).toContain("vs-computer");
+    expect(ids).toContain("hotseat");
   });
 
   it("draw рисует X линиями, O окружностью и не бросает", () => {

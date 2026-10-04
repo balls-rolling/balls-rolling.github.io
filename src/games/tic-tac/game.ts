@@ -59,6 +59,16 @@ const setupForm: FormSchema = {
             signals: ["press"],
           },
         },
+        {
+          type: "control",
+          control: {
+            id: "hotseat",
+            kind: "button",
+            label: "Двое за экраном",
+            icon: "users",
+            signals: ["press"],
+          },
+        },
       ],
     },
     {
@@ -129,7 +139,10 @@ export class TicTacToeGame extends Game {
     const { setup } = environment.game;
     this.#unsubscribe.push(
       setup.on("vs-computer", "press", () => {
-        void this.#start(environment, setup);
+        void this.#start(environment, setup, { humans: 1, computers: 1 });
+      }),
+      setup.on("hotseat", "press", () => {
+        void this.#start(environment, setup, { humans: 2, computers: 0 });
       }),
     );
   }
@@ -139,9 +152,13 @@ export class TicTacToeGame extends Game {
     this.#unsubscribe = [];
   }
 
-  async #start(environment: GameEnvironment, setup: FormHandle): Promise<void> {
+  async #start(
+    environment: GameEnvironment,
+    setup: FormHandle,
+    roster: { humans: number; computers: number },
+  ): Promise<void> {
     this.level = clampLevel(Number(setup.getValue("level") ?? 2));
-    const players = await environment.lobby.defaultPlayers({ humans: 1, computers: 1 });
+    const players = await environment.lobby.defaultPlayers(roster);
     await environment.launch(players);
   }
 

@@ -9,7 +9,7 @@ import {
   type MoveResult,
 } from "@/core/game";
 import type { FormHandle, FormSchema } from "@/core/form";
-import { definePropertySchema } from "@/core/player";
+import { definePropertySchema, type PlayerInit } from "@/core/player";
 import { chooseMove as chooseBrainMove } from "./brain";
 import { canPlace, findWin, key, type Cell } from "./rules";
 
@@ -101,7 +101,7 @@ export class TicTacToeGame extends Game {
 
   /** Уровень ИИ (0..4). Настраивается формой преднастройки (фаза 07). */
   level = 2;
-  /** Пропускать победу — для демо ИИ против ИИ (фаза 08). */
+  /** Пропускать немедленную победу (рычаг для тестов/слабого ИИ); демо его не включает. */
   missWin = false;
 
   /** Отписки от сигналов формы: снимаются в `detachEnvironment`. */
@@ -113,6 +113,16 @@ export class TicTacToeGame extends Game {
 
   override getSetupForm(): FormSchema {
     return setupForm;
+  }
+
+  /** Демо — два компьютера. Средний уровень: партия должна завершаться. */
+  override getDemoPlayers(): readonly PlayerInit[] {
+    this.level = 2;
+    this.missWin = false;
+    return [
+      { id: "ai-1", name: "Компьютер 1", agent: "computer", transport: "local" },
+      { id: "ai-2", name: "Компьютер 2", agent: "computer", transport: "local" },
+    ];
   }
 
   override attachEnvironment(environment: GameEnvironment): void {

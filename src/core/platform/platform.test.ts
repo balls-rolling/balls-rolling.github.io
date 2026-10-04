@@ -43,6 +43,19 @@ const stubEntry: GameEntry = {
   entry: () => Promise.resolve(new StubGame()),
 };
 
+// Заглушка с демо: переопределяет состав демо-партии.
+class DemoStubGame extends StubGame {
+  override getDemoPlayers() {
+    return [{ id: "ai", name: "ИИ", agent: "computer" as const, transport: "local" as const }];
+  }
+}
+
+const demoEntry: GameEntry = {
+  id: "demo-stub",
+  label: "Демо-заглушка",
+  entry: () => Promise.resolve(new DemoStubGame()),
+};
+
 const players = [
   { id: "p1", name: "Первый", agent: "human", transport: "local" } as const,
   { id: "p2", name: "Комп", agent: "computer", transport: "local" } as const,
@@ -82,6 +95,22 @@ describe("Platform", () => {
     expect(spy).toHaveBeenCalledTimes(1);
     expect(session.snapshot().players.map((p) => p.id)).toEqual(["p1", "p2"]);
     session.destroy();
+  });
+
+  it("по умолчанию у игры нет демо", () => {
+    expect(new StubGame().getDemoPlayers()).toBeNull();
+  });
+
+  it("createDemoSession берёт игру с демо, а без демо — null", async () => {
+    const platform = createPlatform(createStore());
+
+    const session = await platform.createDemoSession([stubEntry, demoEntry]);
+    expect(session).not.toBeNull();
+    expect(session!.isDemo).toBe(true);
+    expect(session!.snapshot().players.map((p) => p.id)).toEqual(["ai"]);
+    session!.destroy();
+
+    expect(await platform.createDemoSession([stubEntry])).toBeNull();
   });
 
   it("сохраняет глобальные настройки", async () => {

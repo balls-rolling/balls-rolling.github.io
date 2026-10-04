@@ -131,6 +131,16 @@ describe("TicTacToeGame", () => {
     expect(game.getPropertySchema().specs.map((s) => s.key)).toContain("level");
   });
 
+  it("демо — два компьютера, средний уровень", () => {
+    const game = freshGame();
+    const demo = game.getDemoPlayers();
+    expect(demo).not.toBeNull();
+    expect(demo!).toHaveLength(2);
+    expect(demo!.every((p) => p.agent === "computer")).toBe(true);
+    expect(game.level).toBe(2);
+    expect(game.missWin).toBe(false);
+  });
+
   it("draw рисует X линиями, O окружностью и не бросает", () => {
     const game = freshGame();
     let state = game.createInitialState(["p1", "p2"]);

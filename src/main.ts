@@ -70,5 +70,26 @@ app.provide(notificationsKey, notifications);
 app.provide(boardInputKey, boardInput);
 app.mount("#app");
 
+// Фоновое демо: живая партия за меню. Перезапускается после окончания.
+void startDemo();
+async function startDemo(): Promise<void> {
+  const session = await platform.createDemoSession();
+  if (!session) return;
+  // Слот мог быть занят запущенной игрой, пока демо грузилось.
+  if (sessionHost.session.value) {
+    session.destroy();
+    return;
+  }
+  sessionHost.set(session);
+  session.start();
+  session.subscribe((snapshot) => {
+    if (snapshot.state !== "finished") return;
+    window.setTimeout(() => {
+      // Демо могли сменить на настоящую игру — тогда не перезапускаем.
+      if (sessionHost.session.value === session) session.restart();
+    }, 1500);
+  });
+}
+
 // Меню открыто сразу: на этом этапе играть можно только через него.
 dialogManager.show({ component: MainScreen, title: "Меню" });

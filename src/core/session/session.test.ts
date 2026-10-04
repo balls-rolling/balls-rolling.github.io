@@ -57,7 +57,6 @@ class CounterGame extends Game {
   isFinished(state: GameState): boolean {
     return (state as CounterState).turns >= this.finishAt;
   }
-
   getPropertySchema() {
     return { specs: [] };
   }

@@ -156,6 +156,33 @@ export class Platform {
     const game = await this.createGame(entry);
     return new Session({ game, players, options });
   }
+
+  /**
+   * Демо-сессия случайной игры. Перебирает записи, у первой игры с непустым
+   * `getDemoPlayers()` создаёт сессию с параметром демо. `null` — если ни у одной
+   * игры демо нет. Записи можно передать (тест); по умолчанию — реестр.
+   */
+  async createDemoSession(
+    entries: readonly GameEntry[] = this.listGames(),
+  ): Promise<Session | null> {
+    const shuffled = [...entries];
+    // Перемешивание Фишера–Йетса: демо — случайная игра.
+    for (let i = shuffled.length - 1; i > 0; i -= 1) {
+      const j = Math.floor(Math.random() * (i + 1));
+      const tmp = shuffled[i]!;
+      shuffled[i] = shuffled[j]!;
+      shuffled[j] = tmp;
+    }
+
+    for (const entry of shuffled) {
+      const game = await this.createGame(entry);
+      const players = game.getDemoPlayers();
+      if (players && players.length > 0) {
+        return new Session({ game, players, options: { demo: true } });
+      }
+    }
+    return null;
+  }
 }
 
 export function createPlatform(store?: KeyValueStore): Platform {

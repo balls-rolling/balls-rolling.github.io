@@ -1,5 +1,5 @@
 import type { FormSchema } from "../form";
-import type { PropertySchema } from "../player";
+import type { PlayerInit, PropertySchema } from "../player";
 import type { GameEnvironment } from "./environment";
 import type { ExitCustomization, ExitRequest, GameMenuItem } from "./menu";
 import type { GameState, Move, MoveResult } from "./move";
@@ -36,6 +36,15 @@ export abstract class Game {
   abstract nextPlayer(state: GameState, playerId: string): string | null;
 
   abstract isFinished(state: GameState): boolean;
+
+  /**
+   * Состав демо-партии, которую игра показывает как фоновую. `null` — у игры нет
+   * демо. Платформа выбирает случайную игру с непустым составом и создаёт сессию
+   * с параметром демо; способ игры (ИИ vs ИИ и т.п.) следует из обычных методов.
+   */
+  getDemoPlayers(): readonly PlayerInit[] | null {
+    return null;
+  }
 
   /**
    * Нарисовать партию. Состояние даёт сессия — игра stateless. Контекст уже

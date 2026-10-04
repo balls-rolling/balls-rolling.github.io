@@ -46,7 +46,7 @@ const hudVisible = ref(true);
 
 // Цвета читаются из токенов при монтировании и на смену темы, а не каждый кадр:
 // getComputedStyle в цикле кадра — принудительный reflow (см. бэклог).
-const colors = ref({ bg: "#fff", grid: "#9aa0ab" });
+const colors = ref({ bg: "#fff", grid: "#9aa0ab", x: "#16181d", o: "#3da96a" });
 
 let frameId: number | null = null;
 let resizeObserver: ResizeObserver | null = null;
@@ -67,7 +67,12 @@ function readColors(): void {
   const styles = getComputedStyle(document.documentElement);
   const value = (name: string, fallback: string): string =>
     styles.getPropertyValue(name).trim() || fallback;
-  colors.value = { bg: value("--board-bg", "#fff"), grid: value("--board-grid", "#9aa0ab") };
+  colors.value = {
+    bg: value("--board-bg", "#fff"),
+    grid: value("--board-grid", "#9aa0ab"),
+    x: value("--board-x", "#16181d"),
+    o: value("--board-o", "#3da96a"),
+  };
 }
 
 function drawGrid(ctx: CanvasRenderingContext2D, bounds: CellBounds): void {
@@ -121,6 +126,7 @@ function draw(): void {
       bounds,
       size: size.value,
       dpr: ratio,
+      colors: colors.value,
       toScreen: (point) => worldToScreen(camera.value, point, size.value),
       toWorld: (point) => screenToWorld(camera.value, point, size.value),
     };

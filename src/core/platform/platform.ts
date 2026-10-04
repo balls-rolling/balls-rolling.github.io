@@ -138,6 +138,15 @@ export class Platform {
     return entry.entry();
   }
 
+  /** Поднять сессию на уже созданном экземпляре игры (настройки преднастройки). */
+  createSessionFor(
+    game: Game,
+    players: readonly PlayerInit[],
+    options?: CreateSessionOptions,
+  ): Session {
+    return new Session({ game, players, options });
+  }
+
   /** Поднять сессию: игра создаётся по записи, сессия — по игрокам. */
   async createSession(
     entry: GameEntry,

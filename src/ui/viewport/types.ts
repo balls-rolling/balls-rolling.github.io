@@ -1,3 +1,4 @@
+import type { BoardColors } from "@/core/game";
 import type { Camera, CellBounds, Point, Size } from "@/core/viewport";
 
 // Контракт рендера игрового содержимого. Viewport владеет канвасом, камерой,
@@ -11,6 +12,7 @@ export interface ViewportFrame {
   readonly bounds: CellBounds;
   readonly size: Size;
   readonly dpr: number;
+  readonly colors: BoardColors;
   /** Мировые координаты → пиксели окна (CSS-px). */
   readonly toScreen: (point: Point) => Point;
   /** Пиксели окна → мировые координаты. */

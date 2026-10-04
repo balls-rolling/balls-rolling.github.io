@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { Game, type GameState, type Move, type MoveResult } from "../game";
+import { Game, type GameRenderFrame, type GameState, type Move, type MoveResult } from "../game";
 import { Session } from "./session";
 
 // Тестовая игра: считает ходы и заканчивается на заданном числе.
@@ -246,5 +246,29 @@ describe("Session", () => {
 
     expect(session.isDemo).toBe(true);
     expect(session.snapshot().isDemo).toBe(true);
+  });
+
+  it("draw делегирует отрисовку игре, а destroy прекращает", () => {
+    const game = new CounterGame(3);
+    const spy = vi.spyOn(game, "draw");
+    const session = new Session({
+      game,
+      players: [
+        { id: "p1", name: "Первый", agent: "human", transport: "local" },
+        { id: "p2", name: "Второй", agent: "human", transport: "local" },
+      ],
+      computerDelayMs: 100,
+    });
+    session.start();
+
+    const frame = { dpr: 1 } as unknown as GameRenderFrame;
+    session.draw(frame);
+
+    expect(spy).toHaveBeenCalledTimes(1);
+    expect(spy.mock.calls[0]?.[1]).toBe(frame);
+
+    session.destroy();
+    session.draw(frame);
+    expect(spy).toHaveBeenCalledTimes(1);
   });
 });

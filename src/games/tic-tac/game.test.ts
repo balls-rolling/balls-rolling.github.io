@@ -1,4 +1,5 @@
-import { describe, expect, it } from "vitest";
+﻿import { describe, expect, it } from "vitest";
+import type { GameRenderFrame } from "@/core/game";
 import { TicTacToeGame } from "./game";
 import { key } from "./rules";
 
@@ -112,5 +113,102 @@ describe("TicTacToeGame", () => {
     expect(game.applyMove(state, "p1", { x: "0", y: 0 }).accepted).toBe(false);
     expect(game.applyMove(state, "p1", { x: 0.5, y: 0 }).accepted).toBe(false);
     expect(game.nextPlayer(state, "nobody")).toBeNull();
+  });
+
+  it("lastMove и winLine обновляются, форма и схема на месте", () => {
+    const game = freshGame();
+    let state = game.createInitialState(["p1", "p2"]);
+    state = move(game, state, "p1", 0, 0).state;
+    expect((state as { lastMove: unknown }).lastMove).toEqual({ x: 0, y: 0 });
+    expect((state as { winLine: unknown }).winLine).toBeNull();
+
+    for (let x = 1; x < 5; x += 1) state = move(game, state, "p1", x, 0).state;
+    const winLine = (state as { winLine: readonly { x: number }[] | null }).winLine;
+    expect(winLine?.length).toBe(5);
+
+    const kinds = game.getSetupForm().nodes.map((n) => n.type);
+    expect(kinds).toContain("group");
+    expect(game.getPropertySchema().specs.map((s) => s.key)).toContain("level");
+  });
+
+  it("draw рисует X линиями, O окружностью и не бросает", () => {
+    const game = freshGame();
+    let state = game.createInitialState(["p1", "p2"]);
+    state = move(game, state, "p1", 0, 0).state;
+    state = move(game, state, "p2", 1, 0).state;
+
+    const calls = { stroke: 0, arc: 0, fill: 0 };
+    const ctx = {
+      beginPath() {},
+      moveTo() {},
+      lineTo() {},
+      arc() {
+        calls.arc += 1;
+      },
+      stroke() {
+        calls.stroke += 1;
+      },
+      fill() {
+        calls.fill += 1;
+      },
+      lineWidth: 0,
+      lineCap: "",
+      strokeStyle: "",
+      fillStyle: "",
+    } as unknown as CanvasRenderingContext2D;
+    const frame = {
+      ctx,
+      camera: { x: 0, y: 0, scale: 20 },
+      bounds: { x0: 0, x1: 5, y0: 0, y1: 5 },
+      size: { width: 100, height: 100 },
+      dpr: 1,
+      colors: { bg: "#fff", grid: "#9aa0ab", x: "#16181d", o: "#3da96a" },
+      toScreen: (p: { x: number; y: number }) => ({ x: p.x * 20, y: p.y * 20 }),
+      toWorld: (p: { x: number; y: number }) => p,
+    } as unknown as GameRenderFrame;
+
+    expect(() => game.draw(state, frame)).not.toThrow();
+    expect(calls.stroke).toBe(2); // X + O
+    expect(calls.arc).toBe(2); // окружность O + точка последнего хода
+    expect(calls.fill).toBe(1); // заливка точки последнего хода
+  });
+
+  it("draw подчёркивает победные клетки маркером", () => {
+    const game = freshGame();
+    let state = game.createInitialState(["p1", "p2"]);
+    for (let x = 0; x < 5; x += 1) state = move(game, state, "p1", x, 0).state;
+    expect(game.isFinished(state)).toBe(true);
+
+    const calls = { stroke: 0, fill: 0 };
+    const ctx = {
+      beginPath() {},
+      moveTo() {},
+      lineTo() {},
+      arc() {},
+      stroke() {
+        calls.stroke += 1;
+      },
+      fill() {
+        calls.fill += 1;
+      },
+      lineWidth: 0,
+      lineCap: "",
+      strokeStyle: "",
+      fillStyle: "",
+    } as unknown as CanvasRenderingContext2D;
+    const frame = {
+      ctx,
+      camera: { x: 0, y: 0, scale: 20 },
+      bounds: { x0: 0, x1: 5, y0: 0, y1: 5 },
+      size: { width: 100, height: 100 },
+      dpr: 1,
+      colors: { bg: "#fff", grid: "#9aa0ab", x: "#16181d", o: "#3da96a" },
+      toScreen: (p: { x: number; y: number }) => ({ x: p.x * 20, y: p.y * 20 }),
+      toWorld: (p: { x: number; y: number }) => p,
+    } as unknown as GameRenderFrame;
+
+    game.draw(state, frame);
+    expect(calls.stroke).toBe(5); // пять X
+    expect(calls.fill).toBe(6); // 5 маркеров победных клеток + точка последнего хода
   });
 });

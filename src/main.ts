@@ -9,6 +9,7 @@ import App from "@/App.vue";
 import { createFormController } from "@/core/form";
 import { createPlatform } from "@/core/platform";
 import { watchPalette } from "@/core/theme";
+import { createBoardInput, boardInputKey } from "@/ui/board-input";
 import { dialogKey } from "@/ui/dialog/key";
 import { DialogManager } from "@/ui/dialog/manager";
 import { createNotificationCenter, notificationsKey } from "@/ui/notifications";
@@ -36,6 +37,7 @@ const platform = createPlatform();
 const dialogManager = new DialogManager();
 const sessionHost = createSessionHost();
 const notifications = createNotificationCenter();
+const boardInput = createBoardInput();
 
 // Режим темы берём из настроек: data-theme уже поставлен inline-скриптом до
 // первого кадра, здесь включаем слежение за системой и системный акцент.
@@ -65,6 +67,7 @@ app.provide(platformKey, platform);
 app.provide(dialogKey, dialogManager);
 app.provide(sessionHostKey, sessionHost);
 app.provide(notificationsKey, notifications);
+app.provide(boardInputKey, boardInput);
 app.mount("#app");
 
 // Меню открыто сразу: на этом этапе играть можно только через него.

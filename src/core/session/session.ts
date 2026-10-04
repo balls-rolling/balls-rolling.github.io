@@ -1,5 +1,5 @@
 import { Player, type PlayerInit } from "../player";
-import type { Game, GameState, Move } from "../game";
+import type { Game, GameRenderFrame, GameState, Move } from "../game";
 import type { SessionOptions, SessionSnapshot, SessionState } from "./types";
 
 // Сессия — контроллер партии. Владеет игроками, состоянием, очередью и
@@ -130,6 +130,12 @@ export class Session {
     this.#destroyedFlag = true;
     this.#clearTimer();
     this.#listeners.clear();
+  }
+
+  /** Нарисовать партию: сессия владеет состоянием, рисование делегирует игре. */
+  draw(frame: GameRenderFrame): void {
+    if (this.#destroyedFlag) return;
+    this.#game.draw(this.#gameState, frame);
   }
 
   #reset(): void {

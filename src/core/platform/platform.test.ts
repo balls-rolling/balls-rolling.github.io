@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { Game, type GameEntry, type GameState, type Move, type MoveResult } from "../game";
 import { createStore } from "../storage";
 import {
@@ -70,6 +70,18 @@ describe("Platform", () => {
 
     expect(session.snapshot().state).toBe("idle");
     expect(session.snapshot().players.map((p) => p.id)).toEqual(["p1", "p2"]);
+  });
+
+  it("createSessionFor использует переданный экземпляр игры (настройки преднастройки)", () => {
+    const platform = createPlatform(createStore());
+    const game = new StubGame();
+    const spy = vi.spyOn(game, "createInitialState");
+
+    const session = platform.createSessionFor(game, players);
+
+    expect(spy).toHaveBeenCalledTimes(1);
+    expect(session.snapshot().players.map((p) => p.id)).toEqual(["p1", "p2"]);
+    session.destroy();
   });
 
   it("сохраняет глобальные настройки", async () => {

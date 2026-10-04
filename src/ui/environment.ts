@@ -33,7 +33,7 @@ export function createGameEnvironment(deps: EnvironmentDeps): GameEnvironment {
       // старая жила бы параллельно с созданием и могла оставить за собой таймеры.
       deps.sessionHost.clear();
 
-      const session = await deps.platform.createSession(deps.entry, players, options);
+      const session = deps.platform.createSessionFor(deps.game, players, options);
 
       deps.sessionHost.set(session, deps.game);
       session.start();

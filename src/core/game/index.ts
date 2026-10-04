@@ -10,5 +10,6 @@ export type {
   SessionAccess,
 } from "./environment";
 export type { GameState, Move, MoveResult } from "./move";
+export type { GameRenderFrame, BoardColors } from "./render";
 export type { ExitCustomization, ExitRequest, GameMenuItem } from "./menu";
 export { listGames } from "./registry";

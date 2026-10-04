@@ -3,6 +3,7 @@ import type { PropertySchema } from "../player";
 import type { GameEnvironment } from "./environment";
 import type { ExitCustomization, ExitRequest, GameMenuItem } from "./menu";
 import type { GameState, Move, MoveResult } from "./move";
+import type { GameRenderFrame } from "./render";
 
 // Базовый класс игры. Правила и очередь хода принадлежат игре (D3): в бильярде
 // после удачного удара игрок ходит снова, и это знает только игра.
@@ -35,6 +36,15 @@ export abstract class Game {
   abstract nextPlayer(state: GameState, playerId: string): string | null;
 
   abstract isFinished(state: GameState): boolean;
+
+  /**
+   * Нарисовать партию. Состояние даёт сессия — игра stateless. Контекст уже
+   * настроен под dpr; координаты переводятся через `frame.toScreen`. По
+   * умолчанию игра ничего не рисует.
+   */
+  draw(_state: GameState, _frame: GameRenderFrame): void {
+    /* по умолчанию рендера нет */
+  }
 
   /** Схема игровых свойств игрока. По умолчанию игровых свойств нет. */
   getPropertySchema(): PropertySchema {

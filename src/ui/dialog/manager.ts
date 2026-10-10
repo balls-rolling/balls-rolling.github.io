@@ -17,8 +17,11 @@ export interface ScreenSpec {
    * обязателен — иначе модальность превращается в ловушку.
    */
   readonly closable?: boolean;
+  /** Широкий диалог: на всё окно с общим отступом (например, крупный QR). */
+  readonly wide?: boolean;
   /** Управляющий объект экрана: `destroy` вызовется при снятии экрана. */
   readonly handle?: { destroy?: () => void };
+  readonly onClose?: () => void;
 }
 
 /** Внутренняя запись: добавляет к описанию освобождение ресурсов. */
@@ -44,6 +47,9 @@ export class DialogManager {
   readonly #title = computed(
     () => this.#screens.value[this.#screens.value.length - 1]?.title ?? "",
   );
+  readonly #wide = computed(
+    () => this.#screens.value[this.#screens.value.length - 1]?.wide === true,
+  );
 
   /** Экраны снизу вверх. Последний — активный. */
   get screens() {
@@ -56,6 +62,10 @@ export class DialogManager {
 
   get title() {
     return this.#title;
+  }
+
+  get wide() {
+    return this.#wide;
   }
 
   /** Привязать настоящий элемент `<dialog>`. Вызывается слоем при монтировании. */
@@ -83,7 +93,10 @@ export class DialogManager {
   show(spec: ScreenSpec): void {
     this.#stack.push({
       spec: { ...spec, component: markRaw(spec.component) },
-      onDispose: () => spec.handle?.destroy?.(),
+      onDispose: () => {
+        spec.handle?.destroy?.();
+        spec.onClose?.();
+      },
     });
     this.#sync();
 

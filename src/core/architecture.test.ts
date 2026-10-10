@@ -103,4 +103,12 @@ describe("архитектурные инварианты", () => {
 
     expect(offenders).toEqual([]);
   });
+
+  it("игры не импортируют UI-слой", () => {
+    const offenders = gameFiles
+      .filter((file) => file.specifiers.some(pointsToUi))
+      .map((file) => file.rel);
+
+    expect(offenders).toEqual([]);
+  });
 });

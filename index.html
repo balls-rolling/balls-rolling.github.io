@@ -4,6 +4,9 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="color-scheme" content="light dark" />
+    <!-- Ссылка-приглашение несёт offer (в т.ч. ICE-кандидаты) в query — не отдаём
+         его сторонним ресурсам через Referer. -->
+    <meta name="referrer" content="no-referrer" />
     <!-- Тема до первого кадра: синхронный inline-скрипт (не module/defer) читает
          сохранённый режим из того же ключа, что и хранилище (конверт {v,data}).
          Без него при явной теме возможна вспышка неверной схемы. -->

@@ -13,6 +13,16 @@ export interface ControlOption {
   readonly label: string;
 }
 
+/** Настройка флекса контролла в горизонтальной группе. */
+export interface ControlFlex {
+  readonly grow?: number;
+  readonly shrink?: number;
+  readonly basis?: string;
+}
+
+/** Вариант оформления кнопки (семантический, не сырой цвет). */
+export type ControlVariant = "primary" | "secondary" | "ghost" | "danger";
+
 /**
  * Контролл: минимальная единица ввода или действия.
  * Иконка — нейтральный токен, НЕ Vue-компонент: иначе Vue протёк бы в ядро.
@@ -30,6 +40,13 @@ export interface Control {
    * возможностей, а не reactive signals: сигнал здесь — обычное событие.
    */
   readonly signals?: readonly string[];
+  /**
+   * Флекс в горизонтальной группе. По умолчанию (не задан) — делит ширину с
+   * соседями (`1 1 0`). `false` — по содержимому. Объект — свои grow/shrink/basis.
+   */
+  readonly flex?: boolean | ControlFlex;
+  /** Вариант оформления (для кнопок): цвет/акцент из семантики темы. */
+  readonly variant?: ControlVariant;
 }
 
 export type FormOrientation = "vertical" | "horizontal";

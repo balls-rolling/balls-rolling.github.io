@@ -8,8 +8,10 @@ import { Menu } from "@lucide/vue";
 import type { ExitCustomization } from "@/core/game";
 import { dialogKey } from "@/ui/dialog/key";
 import { iconFor } from "@/ui/icons";
+import { platformKey } from "@/ui/platform";
 import { MainScreen, SettingsScreen } from "@/ui/screens";
 import { sessionHostKey } from "@/ui/session-host";
+import { isPersistable } from "@/ui/session-save";
 import ExitDialog from "./ExitDialog.vue";
 
 const injectedHost = inject(sessionHostKey);
@@ -19,6 +21,10 @@ const sessionHost = injectedHost;
 const injectedDialog = inject(dialogKey);
 if (!injectedDialog) throw new Error("Менеджер диалогов не предоставлен");
 const dialog = injectedDialog;
+
+const injectedPlatform = inject(platformKey);
+if (!injectedPlatform) throw new Error("Платформа не предоставлена");
+const platform = injectedPlatform;
 
 const open = ref(false);
 
@@ -76,8 +82,15 @@ function requestExit(kind: "surrender" | "exit"): void {
   const message =
     custom.message ?? (kind === "surrender" ? "Сдаться и выйти из партии?" : "Выйти из партии?");
 
-  void openExitDialog({ ...custom, message }).then((value) => {
+  void openExitDialog({ ...custom, message }).then(async (value) => {
     if (value === "stay") return;
+    // Явный выход убирает снимок партии. Демо не сохраняется, поэтому его выход
+    // не должен затирать чужое сохранение той же игры. Локальные и сетевые партии
+    // сохраняются — единый предикат (12-b, D7).
+    const saveable = isPersistable(session);
+    // Дожидаемся удаления до показа меню: иначе `MainScreen` успевает прочитать
+    // ещё не удалённый снимок и предлагает «Продолжить» только что вышедшую партию.
+    if (saveable) await platform.removeSessionSave(game.id);
     game.onExitResolved(value);
     sessionHost.clear();
     dialog.show({ component: MainScreen, title: "Меню" });
@@ -88,14 +101,14 @@ function requestExit(kind: "surrender" | "exit"): void {
 <template>
   <div class="game-menu">
     <button
-      class="btn btn--ghost btn--sm"
+      class="btn btn--ghost btn--icon btn--sm"
       type="button"
       title="Меню"
+      aria-label="Меню"
       :aria-expanded="open"
       @click="toggle"
     >
       <Menu class="icon" aria-hidden="true" />
-      <span class="btn__label">Меню</span>
     </button>
 
     <div v-if="open" class="game-menu__panel surface-card">

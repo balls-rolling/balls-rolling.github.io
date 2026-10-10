@@ -1,6 +1,12 @@
 import { Player, type PlayerInit } from "../player";
 import type { Game, GameRenderFrame, GameState, Move } from "../game";
-import type { SessionOptions, SessionSnapshot, SessionState } from "./types";
+import type {
+  SessionOptions,
+  SessionRestore,
+  SessionSave,
+  SessionSnapshot,
+  SessionState,
+} from "./types";
 
 // Сессия — контроллер партии. Владеет игроками, состоянием, очередью и
 // жизненным циклом, но не знает ни правил конкретной игры (они в `Game`), ни
@@ -14,7 +20,16 @@ const DEFAULT_COMPUTER_DELAY_MS = 500;
 
 export interface SessionDeps {
   readonly game: Game;
-  readonly players: readonly PlayerInit[];
+  /**
+   * Игроки новой партии. Взаимоисключающе с `restore`: задайте ровно одно.
+   */
+  readonly players?: readonly PlayerInit[];
+  /**
+   * Восстановление партии из снимка. Взаимоисключающе с `players`: задайте
+   * ровно одно. `createInitialState` при восстановлении не вызывается, ход
+   * компьютера не планируется — это сделает `resume()`.
+   */
+  readonly restore?: SessionRestore;
   readonly options?: SessionOptions;
   /** Задержка хода компьютера. Параметр существует ради тестов. */
   readonly computerDelayMs?: number;
@@ -47,9 +62,46 @@ export class Session {
     this.#isDemo = deps.options?.demo ?? false;
     this.#computerDelayMs = deps.computerDelayMs ?? DEFAULT_COMPUTER_DELAY_MS;
 
-    const schema = this.#game.getPropertySchema();
-    this.#playerList = deps.players.map((init) => new Player(init, schema));
+    const hasPlayers = deps.players !== undefined;
+    const hasRestore = deps.restore !== undefined;
+    if (hasPlayers === hasRestore) {
+      throw new Error("Session: задайте ровно одно из players или restore");
+    }
 
+    const schema = this.#game.getPropertySchema();
+
+    if (deps.restore) {
+      // Восстановление из снимка: состояние и очередь берутся из сохранения,
+      // `createInitialState` не вызывается, таймер компьютера не планируется.
+      const save = deps.restore.save;
+      this.#playerList = save.players.map(
+        (player) =>
+          new Player(
+            {
+              id: player.id,
+              name: player.name,
+              agent: player.agent,
+              transport: player.transport,
+            },
+            schema,
+            player.properties,
+          ),
+      );
+
+      const restored = this.#game.deserializeState(save.gameState);
+      if (restored === null) {
+        throw new Error("Session: не удалось восстановить состояние игры");
+      }
+      this.#gameState = restored;
+      this.#status = save.state;
+      this.#currentPlayerId = save.currentPlayerId;
+      this.#winnerId = save.winnerId;
+      this.#revision = 0;
+      this.#snapshot = this.#buildSnapshot();
+      return;
+    }
+
+    this.#playerList = deps.players!.map((init) => new Player(init, schema));
     this.#gameState = this.#game.createInitialState(this.#playerList.map((p) => p.id));
     this.#snapshot = this.#buildSnapshot();
   }
@@ -60,6 +112,20 @@ export class Session {
 
   snapshot(): SessionSnapshot {
     return this.#snapshot;
+  }
+
+  /**
+   * Снимок партии для сохранения. Состояние игры сериализует сама игра;
+   * платформа в его структуру не заглядывает.
+   */
+  save(): SessionSave {
+    return {
+      players: this.#playerList.map((player) => player.snapshot()),
+      currentPlayerId: this.#currentPlayerId,
+      winnerId: this.#winnerId,
+      state: this.#status,
+      gameState: this.#game.serializeState(this.#gameState),
+    };
   }
 
   subscribe(listener: Listener): () => void {
@@ -82,6 +148,68 @@ export class Session {
   /** Начать заново: состояние партии обнуляется. */
   restart(): void {
     this.start();
+  }
+
+  /**
+   * Возобновить восстановленную партию. Уведомляет подписчиков и возобновляет
+   * ход компьютера, если очередь за ним. Для партии не в `running` — no-op.
+   */
+  resume(): void {
+    if (this.#destroyedFlag) return;
+    if (this.#status === "running") {
+      this.#changed();
+      this.#scheduleComputer();
+    }
+  }
+
+  /**
+   * Принять состояние партии от хоста (12-b, D14): гость не хранит снимок сам,
+   * хост при переподключении присылает своё состояние. Состояние игры
+   * десериализует игра; имена игроков обновляются по id. Мусор — `false`.
+   */
+  adoptState(data: unknown): boolean {
+    if (this.#destroyedFlag) return false;
+    if (typeof data !== "object" || data === null) return false;
+    const save = data as Partial<SessionSave>;
+    if (typeof save.state !== "string" || !Array.isArray(save.players)) return false;
+
+    const restored = this.#game.deserializeState(save.gameState);
+    if (restored === null) return false;
+
+    for (const player of save.players) {
+      if (
+        player &&
+        typeof player.id === "string" &&
+        typeof player.name === "string" &&
+        this.#player(player.id)
+      ) {
+        this.renamePlayer(player.id, player.name);
+      }
+    }
+    this.#gameState = restored;
+    this.#status = save.state as SessionState;
+    this.#currentPlayerId = save.currentPlayerId ?? null;
+    this.#winnerId = save.winnerId ?? null;
+    this.#changed();
+    return true;
+  }
+
+  /**
+   * Сдаться за игрока: партия завершается, победитель — единственный соперник
+   * (для партии на двоих). Сетевой сдаче нужен этот метод: протокол не может
+   * завершить партию сам, состояние знает только сессия.
+   */
+  concede(playerId: string): boolean {
+    if (this.#destroyedFlag || this.#status !== "running") return false;
+    if (!this.#player(playerId)) return false;
+
+    const opponent = this.#playerList.find((player) => player.id !== playerId);
+    this.#status = "finished";
+    this.#winnerId = opponent?.id ?? null;
+    this.#currentPlayerId = null;
+    this.#clearTimer();
+    this.#changed();
+    return true;
   }
 
   /**

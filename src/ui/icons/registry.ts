@@ -1,14 +1,15 @@
 import { markRaw, type Component } from "vue";
 import {
   ArrowLeft,
-  Bug,
   Check,
   Gamepad2,
   List,
   Menu,
   Play,
   Plus,
+  QrCode,
   Settings,
+  Smartphone,
   Users,
   X,
   ZoomIn,
@@ -33,7 +34,8 @@ const icons: Readonly<Record<string, Component>> = Object.freeze({
   check: markRaw(Check),
   "zoom-in": markRaw(ZoomIn),
   "zoom-out": markRaw(ZoomOut),
-  hud: markRaw(Bug),
+  phone: markRaw(Smartphone),
+  qr: markRaw(QrCode),
 });
 
 /** Компонент иконки по токену или `null`, если токен неизвестен. */

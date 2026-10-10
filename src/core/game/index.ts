@@ -1,7 +1,12 @@
 // Публичный API игр: записи реестра, базовый класс и контракты окружения.
-export { Game } from "./game";
+export { Game, DEFAULT_VIEW_OPTIONS } from "./game";
+export type { GameViewOptions, PlayerPanelSchema } from "./game";
 export type { GameEntry } from "./entry";
 export type {
+  DialogAction,
+  DialogAnswer,
+  DialogRequest,
+  Dialogs,
   GameEnvironment,
   LaunchOptions,
   Lobby,

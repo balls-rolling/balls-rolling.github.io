@@ -10,14 +10,16 @@ const DEFAULT_HUMANS = 1;
 export interface DefaultPlayersInput extends LobbyOptions {
   /** Имя первого игрока — из глобальных настроек платформы. */
   readonly name: string;
+  /** Постоянный id главного игрока (UUID); остальные локальные — временные. */
+  readonly playerId?: string;
   readonly humans?: number;
   readonly computers?: number;
 }
 
 /**
- * Собрать локальный состав. Первый человек получает имя из настроек, остальные —
- * «Гость N», компьютеры — «Компьютер N». Идентификаторы детерминированы: на них
- * будут ссылаться сессия и сетевой протокол.
+ * Собрать локальный состав. Главный игрок получает имя из настроек и свой
+ * постоянный id; остальные локальные игроки (второй человек, компьютеры) —
+ * временные id вида `guest_N`. Порядок фиксирован: главный первым.
  */
 export function defaultPlayers(input: DefaultPlayersInput): readonly PlayerInit[] {
   const humans = Math.max(1, input.humans ?? DEFAULT_HUMANS);
@@ -28,12 +30,18 @@ export function defaultPlayers(input: DefaultPlayersInput): readonly PlayerInit[
   const humanCount = Math.min(humans, total);
   const computerCount = total - humanCount;
 
+  let guestIndex = 1;
   const players: PlayerInit[] = [
-    { id: "p1", name: input.name, agent: "human", transport: "local" },
+    {
+      id: input.playerId ?? "p1",
+      name: input.name,
+      agent: "human",
+      transport: "local",
+    },
   ];
   for (let index = 1; index < humanCount; index++) {
     players.push({
-      id: `p${index + 1}`,
+      id: `guest_${guestIndex++}`,
       name: `Гость ${index}`,
       agent: "human",
       transport: "local",
@@ -41,7 +49,7 @@ export function defaultPlayers(input: DefaultPlayersInput): readonly PlayerInit[
   }
   for (let index = 0; index < computerCount; index++) {
     players.push({
-      id: `c${index + 1}`,
+      id: `guest_${guestIndex++}`,
       name: `Компьютер ${index + 1}`,
       agent: "computer",
       transport: "local",
@@ -51,16 +59,19 @@ export function defaultPlayers(input: DefaultPlayersInput): readonly PlayerInit[
   return players;
 }
 
-/** Следующий свободный идентификатор человека для добавления в лобби. */
-export function nextHumanId(players: readonly PlayerInit[]): string {
+/** Следующий свободный временный id локального игрока (`guest_N`). */
+export function nextGuestId(players: readonly PlayerInit[]): string {
   let index = 1;
-  while (players.some((player) => player.id === `p${index}`)) index++;
-  return `p${index}`;
+  while (players.some((player) => player.id === `guest_${index}`)) index++;
+  return `guest_${index}`;
 }
 
-/** Следующий свободный идентификатор компьютера. */
+/** Следующий свободный id человека (в текущей схеме — временный `guest_N`). */
+export function nextHumanId(players: readonly PlayerInit[]): string {
+  return nextGuestId(players);
+}
+
+/** Следующий свободный id компьютера (в текущей схеме — временный `guest_N`). */
 export function nextComputerId(players: readonly PlayerInit[]): string {
-  let index = 1;
-  while (players.some((player) => player.id === `c${index}`)) index++;
-  return `c${index}`;
+  return nextGuestId(players);
 }

@@ -14,6 +14,19 @@ const props = defineProps<{
 }>();
 
 const renderer = computed(() => rendererFor(props.control.kind));
+
+// Флекс из метаданных: не задан — как решит группа (в горизонтальной `1 1 0`),
+// `false` — по содержимому, объект — свои параметры. Инлайновый стиль перебивает
+// CSS группы.
+const flexStyle = computed<Record<string, string> | undefined>(() => {
+  const flex = props.control.flex;
+  if (flex === undefined || flex === true) return undefined;
+  if (flex === false) return { flex: "0 0 auto" };
+  const grow = flex.grow ?? 1;
+  const shrink = flex.shrink ?? 1;
+  const basis = flex.basis ?? "0";
+  return { flex: `${grow} ${shrink} ${basis}` };
+});
 </script>
 
 <template>
@@ -24,5 +37,6 @@ const renderer = computed(() => rendererFor(props.control.kind));
     :set-value="setValue"
     :emit="emit"
     :disabled="disabled"
+    :style="flexStyle"
   />
 </template>

@@ -67,6 +67,9 @@
   --hover: color-mix(in oklch, var(--fg) 8%, transparent);
   --press: color-mix(in oklch, var(--fg) 12%, transparent);
 
+  /* Общий отступ диалогов от краёв окна. */
+  --dialog-margin: var(--space-4);
+
   /* Акцент. */
   --accent: #3da96a;
   --accent-2: #2f8fe0;

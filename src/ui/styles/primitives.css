@@ -19,6 +19,8 @@
   overflow: hidden;
   min-width: 0;
   cursor: default;
+  user-select: none;
+  -webkit-user-select: none;
   transition:
     background-color var(--dur-fast) var(--ease),
     border-color var(--dur-fast) var(--ease),
@@ -36,6 +38,22 @@
 
 .btn:disabled {
   opacity: 0.5;
+}
+
+/* Размер и раскладка кнопок: маленькая — по содержимому, блочная — на всю
+   ширину, флексовая — делит строку с соседями. */
+.btn--block {
+  width: 100%;
+}
+
+.btn--flex {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.btn--auto {
+  flex: 0 0 auto;
+  width: auto;
 }
 
 .btn--primary {
@@ -142,16 +160,23 @@
   align-items: center;
 }
 
-/* В горизонтальной группе дети делят ширину поровну базовым flex. */
+/* В горизонтальной группе дети делят ширину поровну базовым flex. Кнопка
+   `.btn--auto` из этого исключена (по содержимому) — правило ниже по файлу
+   перебивало бы её, поэтому исключаем здесь. */
 .group--horizontal > * {
   flex: 1 1 0;
   min-width: 0;
 }
 
-/* В вертикальном стеке кнопки занимают всю доступную ширину, в строке — по
-   содержимому. Кнопки формы в колонке и так растягиваются; здесь — списки. */
-.group > .btn,
-.group > li > .btn {
+.group--horizontal > .btn--auto {
+  flex: 0 0 auto;
+  width: auto;
+}
+
+/* В вертикальном стеке кнопки занимают всю доступную ширину; в горизонтальной
+   строке ширину задаёт flex (см. `.group--horizontal`). */
+.group:not(.group--horizontal) > .btn,
+.group:not(.group--horizontal) > li > .btn {
   width: 100%;
 }
 
@@ -182,4 +207,32 @@
   height: 1em;
   flex: none;
   color: currentColor;
+}
+
+/* --- Состояние загрузки ------------------------------------------------- */
+
+/* Строка «идёт загрузка»: спиннер + подпись. */
+.loading {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--on-surface-variant);
+  font-size: var(--fs-sm);
+}
+
+.spinner {
+  display: inline-block;
+  width: 1em;
+  height: 1em;
+  flex: none;
+  border: 2px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 999px;
+  animation: spinner-rotate 700ms linear infinite;
+}
+
+@keyframes spinner-rotate {
+  to {
+    transform: rotate(360deg);
+  }
 }

@@ -1,0 +1,21 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      // Dev-сервер как фоновая задача: нужен для конфигурации «Dev-сервер + Chrome».
+      "label": "vite: dev",
+      "type": "shell",
+      "command": "npm run dev",
+      "isBackground": true,
+      "problemMatcher": {
+        "owner": "vite",
+        "pattern": [{ "regexp": "^\\s*$" }],
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": "VITE",
+          "endsPattern": "Local:\\s+http://localhost:\\d+"
+        }
+      }
+    }
+  ]
+}

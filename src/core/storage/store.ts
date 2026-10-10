@@ -1,4 +1,10 @@
-import { createLocalStorageBackend, MemoryBackend, type StorageBackend } from "./backends";
+import {
+  createLocalStorageBackend,
+  FallbackBackend,
+  MemoryBackend,
+  type StorageBackend,
+} from "./backends";
+import { createIndexedDbBackend } from "./idb";
 import type { KeyValueStore, Schema } from "./types";
 
 // Хранилище поверх бэкенда. Имя не `Storage`: идентификатор `Storage` занят
@@ -68,8 +74,33 @@ export class KeyValueStoreImpl implements KeyValueStore {
   async remove(key: string): Promise<void> {
     await this.#backend.remove(PREFIX + key);
   }
+
+  async keys(): Promise<string[]> {
+    const raw = await this.#backend.keys();
+    return raw.filter((key) => key.startsWith(PREFIX)).map((key) => key.slice(PREFIX.length));
+  }
+
+  /** Удалить все ключи этого пространства имён (префикс снимается/навешивается). */
+  async clear(): Promise<void> {
+    const keys = await this.keys();
+    for (const key of keys) {
+      await this.remove(key);
+    }
+  }
 }
 
 export function createStore(backend?: StorageBackend): KeyValueStore {
   return new KeyValueStoreImpl(backend);
+}
+
+/**
+ * Хранилище сохранений: IndexedDB, а при его недоступности/сбое — localStorage
+ * (с фолбэком в память). Иначе на браузерах с заблокированным IndexedDB (приватный
+ * режим, ограничения origin) сохранения терялись бы молча.
+ */
+export function createIdbStore(backend?: StorageBackend): KeyValueStore {
+  if (backend) return new KeyValueStoreImpl(backend);
+  const primary = createIndexedDbBackend();
+  const secondary = createLocalStorageBackend() ?? new MemoryBackend();
+  return new KeyValueStoreImpl(primary ? new FallbackBackend(primary, secondary) : secondary);
 }

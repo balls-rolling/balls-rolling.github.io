@@ -9,6 +9,7 @@ import { computed, inject } from "vue";
 import LayerBoard from "@/ui/shell/LayerBoard.vue";
 import LayerGameUi from "@/ui/shell/LayerGameUi.vue";
 import LayerDialogs from "@/ui/shell/LayerDialogs.vue";
+import PortraitHint from "@/ui/shell/PortraitHint.vue";
 import SessionHost from "@/ui/shell/SessionHost.vue";
 import { sessionHostKey } from "@/ui/session-host";
 import "@/ui/shell/layers.css";
@@ -27,6 +28,7 @@ const isDemo = computed(() => sessionHost.session.value?.isDemo ?? false);
       <SessionHost />
     </LayerGameUi>
     <LayerDialogs />
+    <PortraitHint />
   </main>
 </template>
 

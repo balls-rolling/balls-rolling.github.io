@@ -39,12 +39,25 @@ export class Player {
   readonly #schema: PropertySchema;
   readonly #properties = new Map<string, unknown>();
 
-  constructor(init: PlayerInit, schema: PropertySchema) {
+  constructor(
+    init: PlayerInit,
+    schema: PropertySchema,
+    properties?: Readonly<Record<string, unknown>>,
+  ) {
     this.id = init.id;
     this.agent = init.agent;
     this.transport = init.transport;
     this.#name = init.name;
     this.#schema = schema;
+
+    // Восстановление игровых свойств из снимка. Каждое значение проходит через
+    // `setProperty`: невалидные и отсутствующие в схеме молча отбрасываются —
+    // как и при обычной записи.
+    if (properties) {
+      for (const [key, value] of Object.entries(properties)) {
+        this.setProperty(key, value);
+      }
+    }
   }
 
   get name(): string {

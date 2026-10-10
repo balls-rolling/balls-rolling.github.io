@@ -8,11 +8,17 @@
   inset: 0;
   display: flex;
   align-items: flex-start;
-  padding: calc(var(--space-4) + env(safe-area-inset-top))
-    calc(var(--space-4) + env(safe-area-inset-right))
-    calc(var(--space-4) + env(safe-area-inset-bottom))
-    calc(var(--space-4) + env(safe-area-inset-left));
+  padding: var(--shell-pad-top) var(--shell-pad-right) var(--shell-pad-bottom) var(--shell-pad-left);
   color: var(--on-surface);
+}
+
+/* Отступы слоёв: одни и те же для текучей раскладки и для угловых элементов
+   (меню, колокольчик), чтобы они стояли на одной линии. */
+.app-root {
+  --shell-pad-top: calc(var(--space-4) + env(safe-area-inset-top));
+  --shell-pad-right: calc(var(--space-4) + env(safe-area-inset-right));
+  --shell-pad-bottom: calc(var(--space-4) + env(safe-area-inset-bottom));
+  --shell-pad-left: calc(var(--space-4) + env(safe-area-inset-left));
 }
 
 /* Меток слоёв больше нет: их место заняло настоящее меню. Ярлыки были
@@ -48,19 +54,30 @@
   pointer-events: none;
 }
 
+/* Заглушка портрета («поверните устройство»): выше всех слоёв, включая диалоги.
+   Показ — по медиазапросу в самом компоненте, здесь только место в стопке. */
+.portrait-hint {
+  z-index: 3;
+  pointer-events: auto;
+}
+
 /* --- Диалог платформы: центрированная карточка --- */
 
 /* `pointer-events` — наследуемое свойство: без явного `auto` диалог унаследовал
    бы `none` от слоя и стал бы неинтерактивным. */
 .app-dialog {
   pointer-events: auto;
+  /* Текст диалога не выделяется перетаскиванием; поля ввода — исключение
+     (см. `base.css`: input/textarea — `user-select: text`). */
+  user-select: none;
+  -webkit-user-select: none;
   width: min(
     480px,
-    calc(100vw - 2 * var(--space-4) - env(safe-area-inset-left) - env(safe-area-inset-right))
+    calc(100vw - 2 * var(--dialog-margin) - env(safe-area-inset-left) - env(safe-area-inset-right))
   );
   max-width: 100%;
   max-height: calc(
-    100dvh - 2 * var(--space-5) - env(safe-area-inset-top) - env(safe-area-inset-bottom)
+    100dvh - 2 * var(--dialog-margin) - env(safe-area-inset-top) - env(safe-area-inset-bottom)
   );
   margin: auto;
   padding: 0;
@@ -72,12 +89,20 @@
   overflow: hidden;
 }
 
-/* Подложка диалога: затемнение с размытием. Свой `backdrop-filter` у карточки
-   не используем — он делал бы диалог containing block для `position: fixed`
-   (колокольчик и тосты), и они привязывались бы к окошку, а не к экрану. */
+/* Широкий диалог: ограничен только краями окна (общий отступ) — для крупного
+   содержимого, например QR. */
+.app-dialog--wide {
+  width: calc(100vw - 2 * var(--dialog-margin));
+  max-width: none;
+}
+
+/* Подложка модального диалога: затемнение + размытие + лёгкое обесцвечивание.
+   Свой `backdrop-filter` у карточки не используем — он делал бы диалог
+   containing block для `position: fixed` (колокольчик и тосты), и они
+   привязывались бы к окошку, а не к экрану. */
 .app-dialog::backdrop {
   background: color-mix(in oklch, var(--bg) 35%, transparent);
-  backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px) saturate(0.7);
 }
 
 .app-dialog__header {
@@ -111,6 +136,11 @@
   padding: var(--space-4);
   max-height: min(70vh, 560px);
   overflow: auto;
+}
+
+/* В широком диалоге содержимое ограничено только высотой карточки. */
+.app-dialog--wide .app-dialog__content {
+  max-height: none;
 }
 
 .app-dialog__screen {

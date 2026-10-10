@@ -19,6 +19,9 @@ const SIGNAL = "press";
 // Иконка — по строковому токену; неизвестный токен даёт `null`, кнопка остаётся.
 const icon = computed(() => (props.control.icon ? iconFor(props.control.icon) : null));
 
+// Вариант оформления — из метаданных; по умолчанию вторичная кнопка.
+const variantClass = computed(() => `btn--${props.control.variant ?? "secondary"}`);
+
 function onClick(): void {
   props.emit(props.control.id, SIGNAL);
 }
@@ -26,7 +29,8 @@ function onClick(): void {
 
 <template>
   <button
-    class="btn btn--secondary"
+    class="btn"
+    :class="variantClass"
     type="button"
     :disabled="disabled"
     :title="control.label"

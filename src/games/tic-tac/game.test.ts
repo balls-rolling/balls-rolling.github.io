@@ -235,4 +235,131 @@ describe("TicTacToeGame", () => {
     expect(calls.stroke).toBe(5); // пять X
     expect(calls.fill).toBe(6); // 5 маркеров победных клеток + точка последнего хода
   });
+
+  it("serializeState → deserializeState: полный roundtrip всех полей", () => {
+    const game = freshGame();
+    let state = game.createInitialState(["p1", "p2"]);
+    state = move(game, state, "p1", 0, 0).state;
+    state = move(game, state, "p2", 10, 10).state;
+    for (let x = 1; x < 5; x += 1) state = move(game, state, "p1", x, 0).state;
+    expect(game.isFinished(state)).toBe(true);
+
+    const restored = game.deserializeState(game.serializeState(state));
+    expect(restored).not.toBeNull();
+    // Все поля совпадают: order, sets, glyphs, total, finished, winnerId,
+    // lastMove, winLine (toEqual сравнивает Set по составу).
+    expect(restored).toEqual(state);
+    // sets после deserialize — снова Set, не массивы.
+    const sets = (restored as { sets: Record<string, unknown> }).sets;
+    expect(sets.p1).toBeInstanceOf(Set);
+    expect(sets.p2).toBeInstanceOf(Set);
+    expect((restored as { winLine: readonly unknown[] | null }).winLine).toHaveLength(5);
+    expect((restored as { lastMove: unknown }).lastMove).toEqual({ x: 4, y: 0 });
+    expect((restored as { winnerId: unknown }).winnerId).toBe("p1");
+  });
+
+  it("serializeState JSON-safe: нет Set, кругооборот JSON не теряет данные", () => {
+    const game = freshGame();
+    let state = game.createInitialState(["p1", "p2"]);
+    state = move(game, state, "p1", 1, 1).state;
+    const serialized = game.serializeState(state) as { sets: Record<string, unknown> };
+
+    const hasSpecial = (value: unknown): boolean => {
+      if (value instanceof Set || value instanceof Map) return true;
+      if (Array.isArray(value)) return value.some(hasSpecial);
+      if (value !== null && typeof value === "object") {
+        return Object.values(value).some(hasSpecial);
+      }
+      return false;
+    };
+    expect(hasSpecial(serialized)).toBe(false);
+    expect(serialized.sets.p1).toEqual(["1,1"]);
+
+    const viaJson = JSON.parse(JSON.stringify(serialized));
+    expect(viaJson).toEqual(serialized);
+  });
+
+  it("deserializeState отклоняет мусор и неверную форму (null, без броска)", () => {
+    const game = freshGame();
+    let state = game.createInitialState(["p1", "p2"]);
+    state = move(game, state, "p1", 0, 0).state;
+    const valid = game.serializeState(state) as Record<string, unknown>;
+
+    expect(game.deserializeState(null)).toBeNull();
+    expect(game.deserializeState(42)).toBeNull();
+    expect(game.deserializeState("state")).toBeNull();
+    expect(game.deserializeState([])).toBeNull();
+    expect(game.deserializeState({})).toBeNull();
+
+    const clone = (): Record<string, unknown> => JSON.parse(JSON.stringify(valid));
+    const cases: Array<Record<string, unknown>> = [];
+    const badOrder = clone();
+    badOrder.order = [1, 2];
+    cases.push(badOrder);
+    const badSets = clone();
+    badSets.sets = { p1: "0,0" };
+    cases.push(badSets);
+    const badSetsItem = clone();
+    badSetsItem.sets = { p1: [1] };
+    cases.push(badSetsItem);
+    const badGlyphs = clone();
+    badGlyphs.glyphs = { p1: 1 };
+    cases.push(badGlyphs);
+    const badTotal = clone();
+    badTotal.total = "0";
+    cases.push(badTotal);
+    const badFinished = clone();
+    badFinished.finished = 1;
+    cases.push(badFinished);
+    const badWinner = clone();
+    badWinner.winnerId = 7;
+    cases.push(badWinner);
+    const badLast = clone();
+    badLast.lastMove = { x: "0", y: 0 };
+    cases.push(badLast);
+    const badLine = clone();
+    badLine.winLine = "line";
+    cases.push(badLine);
+    const badLineItem = clone();
+    badLineItem.winLine = [{ x: 0 }];
+    cases.push(badLineItem);
+    const missingField = clone();
+    delete missingField.total;
+    cases.push(missingField);
+
+    for (const broken of cases) expect(game.deserializeState(broken)).toBeNull();
+  });
+
+  it("настройки: roundtrip уровня и кламп в 0..4", () => {
+    const game = freshGame();
+    game.level = 3;
+    const settings = game.serializeSettings();
+    expect(settings).toEqual({ level: 3 });
+
+    const other = freshGame();
+    other.applySettings(settings);
+    expect(other.level).toBe(3);
+
+    other.applySettings({ level: 99 });
+    expect(other.level).toBe(4);
+    other.applySettings({ level: -5 });
+    expect(other.level).toBe(0);
+    other.applySettings({ level: 2.9 });
+    expect(other.level).toBe(2);
+
+    // Мусор не бросает и не меняет уровень.
+    other.applySettings(null);
+    other.applySettings(7);
+    other.applySettings({ level: "3" });
+    other.applySettings({});
+    expect(other.level).toBe(2);
+  });
+
+  it("serializeSettings не ломается на уровне вне диапазона", () => {
+    const game = freshGame();
+    game.level = 99;
+    expect(game.serializeSettings()).toEqual({ level: 99 });
+    game.level = -1;
+    expect(game.serializeSettings()).toEqual({ level: -1 });
+  });
 });

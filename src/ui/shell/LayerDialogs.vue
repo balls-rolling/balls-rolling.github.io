@@ -47,7 +47,13 @@ function focusActiveScreen(): void {
 
 <template>
   <section class="layer layer-dialogs">
-    <dialog ref="dialogElement" class="app-dialog" aria-modal="true" closedby="none">
+    <dialog
+      ref="dialogElement"
+      class="app-dialog"
+      :class="{ 'app-dialog--wide': manager.wide.value }"
+      aria-modal="true"
+      closedby="none"
+    >
       <header class="app-dialog__header">
         <button
           v-if="canGoBack"

@@ -1,5 +1,6 @@
-import type { FormSchema } from "../form";
+import type { FormNode, FormSchema } from "../form";
 import type { PlayerInit, PropertySchema } from "../player";
+import type { UiLayoutSchema } from "../ui-zones";
 import type { GameEnvironment } from "./environment";
 import type { ExitCustomization, ExitRequest, GameMenuItem } from "./menu";
 import type { GameState, Move, MoveResult } from "./move";
@@ -9,6 +10,34 @@ import type { GameRenderFrame } from "./render";
 // после удачного удара игрок ходит снова, и это знает только игра.
 //
 // Класс не знает ни о Vue, ни об UI, ни о других играх.
+
+/** Опции вида игры: что включено в интерфейсе вокруг поля. */
+export interface GameViewOptions {
+  readonly zoom: boolean;
+  readonly pan: boolean;
+  readonly grid: boolean;
+  /** Стандартная панель участников платформы. Игра может отказаться (своя). */
+  readonly playersPanel?: boolean;
+  /** Показывать в панели участников счёт, шары и время. По умолчанию нет. */
+  readonly playersStats?: boolean;
+}
+
+/** Дефолт: всё включено — поведение игр, не переопределяющих `getViewOptions`. */
+export const DEFAULT_VIEW_OPTIONS: GameViewOptions = {
+  zoom: true,
+  pan: true,
+  grid: true,
+  playersPanel: true,
+  playersStats: false,
+};
+
+/** Дополнение системной панели игрока контроллами игры. */
+export interface PlayerPanelSchema {
+  /** Слоты в строке с именем (например, бонусы). */
+  readonly nameRow?: readonly FormNode[];
+  /** Нижняя строка; пусто — строки нет. */
+  readonly bottomRow?: readonly FormNode[];
+}
 
 export abstract class Game {
   /** Идентификатор, стабильный между запусками. */
@@ -47,6 +76,14 @@ export abstract class Game {
   }
 
   /**
+   * Что игре нужно от камеры поля: зум, панорама, сетка. По умолчанию всё
+   * включено (поведение прежних игр). Игра с фиксированным полем выключает лишнее.
+   */
+  getViewOptions(): GameViewOptions {
+    return DEFAULT_VIEW_OPTIONS;
+  }
+
+  /**
    * Нарисовать партию. Состояние даёт сессия — игра stateless. Контекст уже
    * настроен под dpr; координаты переводятся через `frame.toScreen`. По
    * умолчанию игра ничего не рисует.
@@ -66,6 +103,23 @@ export abstract class Game {
    */
   getSetupForm(): FormSchema {
     return { nodes: [] };
+  }
+
+  /**
+   * Декларативная раскладка зон интерфейса игры (верх/низ/лево/право) — как
+   * `getSetupForm`, только для игрового экрана. По умолчанию зон нет.
+   */
+  getUiLayout(): UiLayoutSchema {
+    return { zones: {} };
+  }
+
+  /**
+   * Дополнительные контроллы в системной панели игрока: слоты в строке с именем
+   * и нижняя строка (по умолчанию пустая и высоты не занимает). Игра решает,
+   * что показать; сторона (левый/правый) приходит контроллам отдельно.
+   */
+  getPlayerPanel(): PlayerPanelSchema {
+    return {};
   }
 
   /**
@@ -114,5 +168,42 @@ export abstract class Game {
    */
   onExitResolved(_value: string): void {
     /* по умолчанию реакция не нужна */
+  }
+
+  /**
+   * Превратить состояние партии в переносимые plain-данные (JSON-safe).
+   *
+   * ВНИМАНИЕ: значение по умолчанию возвращает `state` как есть (identity).
+   * Если состояние содержит `Set`, `Map` или иные непереносимые структуры,
+   * игра ОБЯЗАНА переопределить метод: иначе `JSON.stringify` молча потеряет
+   * данные, а сохранение станет невосстановимым.
+   */
+  serializeState(state: GameState): unknown {
+    return state;
+  }
+
+  /**
+   * Восстановить состояние из данных, отданных `serializeState`. `null` —
+   * данные непригодны (мусор, чужая версия): вызывающий отбрасывает сохранение.
+   * По умолчанию принимает непустой объект как `GameState`.
+   */
+  deserializeState(data: unknown): GameState | null {
+    if (typeof data !== "object" || data === null) return null;
+    if (Object.keys(data).length === 0) return null;
+    return data as GameState;
+  }
+
+  /**
+   * Сериализовать игровые настройки. По умолчанию настроек нет — `null`.
+   * Парные методы `serializeSettings`/`applySettings` — аддитивны: игра,
+   * которой настройки не нужны, их не переопределяет.
+   */
+  serializeSettings(): unknown {
+    return null;
+  }
+
+  /** Применить настройки, полученные из `serializeSettings`. */
+  applySettings(_data: unknown): void {
+    /* по умолчанию настроек нет */
   }
 }

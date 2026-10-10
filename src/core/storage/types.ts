@@ -21,4 +21,8 @@ export interface KeyValueStore {
   /** Запись не гарантирует персистентность: при переполнении она тихо не срабатывает. */
   write<T>(key: string, value: T): Promise<void>;
   remove(key: string): Promise<void>;
+  /** Логические ключи этого хранилища (без префикса пространства имён). */
+  keys(): Promise<string[]>;
+  /** Удалить все значения этого хранилища (чужие ключи origin не трогаются). */
+  clear(): Promise<void>;
 }

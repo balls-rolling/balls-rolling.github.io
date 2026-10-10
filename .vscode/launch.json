@@ -1,0 +1,22 @@
+{
+  // F5 запускает dev-сервер в терминале: остановить можно кнопкой «стоп» в
+  // панели отладки — отдельная консоль для убивания процесса не нужна.
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Dev-сервер",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "npm run dev",
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "name": "Dev-сервер + Chrome",
+      "type": "chrome",
+      "request": "launch",
+      "url": "http://localhost:5173",
+      "webRoot": "${workspaceFolder}/src",
+      "preLaunchTask": "vite: dev"
+    }
+  ]
+}

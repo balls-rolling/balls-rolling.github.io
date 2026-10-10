@@ -1,6 +1,7 @@
 import type { FormHandle } from "../form";
 import type { PlayerInit } from "../player";
 import type { SessionSnapshot } from "../session";
+import type { UiZones } from "../ui-zones";
 import type { Move } from "./move";
 
 // Контракты окружения игры. Платформа предоставляет игре этот интерфейс; игра
@@ -27,6 +28,8 @@ export interface SessionAccess {
 export interface LobbyOptions {
   readonly maxPlayers?: number;
   readonly allowComputer?: boolean;
+  /** Код приглашения для немедленного подключения (deep-link). */
+  readonly offer?: string;
 }
 
 /** Опции локального состава по умолчанию. */
@@ -57,6 +60,46 @@ export interface LaunchOptions {
   readonly demo?: boolean;
 }
 
+/** Кнопка окна: подпись, что она значит и вид. Задаёт игра. */
+export interface DialogAction {
+  readonly label: string;
+  /** Что вернёт игра в ответе при нажатии. */
+  readonly value: string;
+  readonly variant?: "primary" | "secondary";
+}
+
+/**
+ * Окно, которое игра просит показать: заголовок, текст и кнопки. Никаких
+ * компонентов и разметки — описание намерения, рисует платформа.
+ */
+export interface DialogRequest {
+  readonly title: string;
+  readonly message: string;
+  readonly actions: readonly DialogAction[];
+}
+
+/** Ответ окна: какую кнопку нажали и с чем. */
+export interface DialogAnswer {
+  readonly value: string;
+  readonly payload?: unknown;
+}
+
+/**
+ * Диалоги платформы — инструмент, а не UI. **Игра сама решает, что партия
+ * закончена**, сама просит показать окно и сама разбирает ответ.
+ *
+ * `show` резолвится ответом игрока и **отклоняется, если окно закрыли иначе**
+ * (вышли через меню, смена сессии). Обработка отказа — забота игры.
+ */
+export interface Dialogs {
+  /** Показать окно. Промис = ответ или reject. */
+  show(request: DialogRequest): Promise<DialogAnswer>;
+  /** Перезапустить партию тем же составом — обычно ответ на «Ещё раз». */
+  rematch(): void;
+  /** Выйти в главное меню — обычно ответ на «В меню». */
+  exitToMenu(): void;
+}
+
 /**
  * Окружение игры: то, чем игра пользуется, не зная внутренностей платформы.
  * Возможности за пределами этой фазы (`board`, `ui`) добавляются аддитивно.
@@ -67,6 +110,10 @@ export interface GameEnvironment {
     readonly label: string;
     /** Управляющий объект преднастройки: игра читает значения и слушает сигналы. */
     readonly setup: FormHandle;
+    /** Зоны интерфейса игры: игра кладёт в них контроллы и слушает сигналы. */
+    readonly ui: UiZones;
+    /** Окна платформы: итог партии игра показывает сама этим инструментом. */
+    readonly dialogs: Dialogs;
   };
   readonly lobby: Lobby;
   /**

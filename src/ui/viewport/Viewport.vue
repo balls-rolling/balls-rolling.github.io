@@ -1,6 +1,6 @@
 <script setup lang="ts">
 // Viewport — переиспользуемое canvas-поле платформы: камера-окно, панорама, зум,
-// dpr, отсечение видимых клеток и отладочный HUD. Рисование фигур делегируется
+// dpr и отсечение видимых клеток. Рисование фигур делегируется
 // игре колбэком `render`; сам Viewport знает только про фон и сетку.
 //
 // Математика камеры — чистая, в `@/core/viewport`; здесь только DOM, события и
@@ -30,12 +30,16 @@ const props = withDefaults(
     showGrid?: boolean;
     blocked?: boolean;
     initialCamera?: Camera;
-    /** Показывать служебные элементы (зум, HUD). В демо их нет. */
+    /** Показывать служебные элементы (зум). В демо их нет. */
     controls?: boolean;
+    /** Разрешить зум колесом и кнопками. */
+    zoom?: boolean;
+    /** Разрешить панорамирование указателем. */
+    pan?: boolean;
     /** Стиль курсора поля; игра может переопределить. */
     cursor?: string;
   }>(),
-  { showGrid: true, blocked: false, controls: true, cursor: "default" },
+  { showGrid: true, blocked: false, controls: true, zoom: true, pan: true, cursor: "default" },
 );
 
 const emit = defineEmits<{ pick: [point: Point] }>();
@@ -46,7 +50,6 @@ const canvas = useTemplateRef<HTMLCanvasElement>("canvas");
 const camera = ref<Camera>({ ...(props.initialCamera ?? DEFAULT_CAMERA) });
 const size = ref<Size>({ width: 0, height: 0 });
 const dpr = ref(1);
-const hudVisible = ref(false);
 const dragging = ref(false);
 
 // Цвета читаются из токенов при монтировании и на смену темы, а не каждый кадр:
@@ -147,7 +150,12 @@ function toCanvasPoint(event: PointerEvent | WheelEvent): Point {
 
 function onPointerDown(event: PointerEvent): void {
   if (event.button !== 0 || !canvas.value) return;
-  canvas.value.setPointerCapture(event.pointerId);
+  if (!props.pan) return; // панорама выключена: жест не начинаем
+  try {
+    canvas.value.setPointerCapture(event.pointerId);
+  } catch {
+    // Синтетический указатель без активного пойнтера — жест всё равно ведём.
+  }
   dragging.value = true;
   drag = { sx: event.clientX, sy: event.clientY, camera: camera.value, moved: 0 };
 }
@@ -157,16 +165,27 @@ function onPointerMove(event: PointerEvent): void {
   const dx = event.clientX - drag.sx;
   const dy = event.clientY - drag.sy;
   drag.moved = Math.max(drag.moved, Math.hypot(dx, dy));
-  camera.value = panByPixels(drag.camera, dx, dy);
+  if (props.pan) camera.value = panByPixels(drag.camera, dx, dy);
   scheduleDraw();
 }
 
 function onPointerUp(event: PointerEvent): void {
   if (event.button !== 0) return;
+  if (!props.pan) {
+    // Жест не начинался: трактуем как тап (клик по полю).
+    if (props.blocked) return;
+    const world = screenToWorld(camera.value, toCanvasPoint(event), size.value);
+    emit("pick", { x: Math.floor(world.x), y: Math.floor(world.y) });
+    return;
+  }
   const wasDrag = drag !== null && drag.moved > PICK_THRESHOLD;
   drag = null;
   dragging.value = false;
-  canvas.value?.releasePointerCapture(event.pointerId);
+  try {
+    canvas.value?.releasePointerCapture(event.pointerId);
+  } catch {
+    // Захват уже отпущен или указатель синтетический — не критично.
+  }
   if (wasDrag || props.blocked) return;
 
   const world = screenToWorld(camera.value, toCanvasPoint(event), size.value);
@@ -179,6 +198,10 @@ function onPointerCancel(): void {
 }
 
 function onWheel(event: WheelEvent): void {
+  if (!props.zoom) {
+    event.preventDefault(); // зум выключен: страницу поверх стола не прокручиваем
+    return;
+  }
   event.preventDefault();
   const factor = event.deltaY < 0 ? WHEEL_STEP : 1 / WHEEL_STEP;
   camera.value = zoomBy(camera.value, toCanvasPoint(event), size.value, factor);
@@ -194,10 +217,6 @@ function zoomAtCenter(factor: number): void {
 function resetCamera(): void {
   camera.value = { ...(props.initialCamera ?? DEFAULT_CAMERA) };
   scheduleDraw();
-}
-
-function toggleHud(): void {
-  hudVisible.value = !hudVisible.value;
 }
 
 function onDprChange(): void {
@@ -242,10 +261,10 @@ onBeforeUnmount(() => {
 defineExpose({
   camera,
   size,
+  canvas,
   resetCamera,
   zoomIn: () => zoomAtCenter(ZOOM_STEP),
   zoomOut: () => zoomAtCenter(1 / ZOOM_STEP),
-  toggleHud,
   draw,
 });
 </script>
@@ -263,7 +282,7 @@ defineExpose({
     />
 
     <template v-if="controls">
-      <div class="viewport__zoom">
+      <div v-if="zoom" class="viewport__zoom">
         <button
           class="viewport__button btn btn--icon btn--ghost"
           type="button"
@@ -284,22 +303,6 @@ defineExpose({
         </button>
       </div>
 
-      <div v-if="hudVisible" class="viewport__hud" aria-hidden="true">
-        <span>x {{ camera.x.toFixed(1) }} · y {{ camera.y.toFixed(1) }}</span>
-        <span>scale {{ camera.scale.toFixed(1) }} · dpr {{ dpr }}</span>
-        <span>{{ size.width }}×{{ size.height }}</span>
-      </div>
-
-      <button
-        class="viewport__hud-toggle btn btn--icon btn--ghost"
-        type="button"
-        :aria-pressed="hudVisible"
-        aria-label="Отладочный оверлей"
-        title="Отладочный оверлей"
-        @click="toggleHud"
-      >
-        <component :is="iconFor('hud')" class="icon" aria-hidden="true" />
-      </button>
     </template>
   </div>
 </template>
@@ -329,32 +332,6 @@ defineExpose({
 }
 
 .viewport__button {
-  background: var(--surface-2);
-  border: 1px solid var(--border);
-  box-shadow: var(--elev-2);
-}
-
-.viewport__hud {
-  position: absolute;
-  left: var(--space-3);
-  top: var(--space-3);
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  padding: var(--space-1) var(--space-2);
-  border: 1px solid var(--border);
-  border-radius: var(--r-sm);
-  background: color-mix(in oklch, var(--surface-2) 80%, transparent);
-  color: var(--on-surface-variant);
-  font-size: var(--fs-xs);
-  font-variant-numeric: tabular-nums;
-  pointer-events: none;
-}
-
-.viewport__hud-toggle {
-  position: absolute;
-  left: var(--space-3);
-  bottom: var(--space-3);
   background: var(--surface-2);
   border: 1px solid var(--border);
   box-shadow: var(--elev-2);

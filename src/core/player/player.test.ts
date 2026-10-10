@@ -80,4 +80,27 @@ describe("Player", () => {
 
     expect(player.getProperty("rating")).toBe(10);
   });
+
+  it("восстанавливает игровые свойства из снимка", () => {
+    const player = new Player(
+      { id: "p1", name: "Игрок", agent: "human", transport: "local" },
+      schema,
+      { rating: 7, glyph: "o" },
+    );
+
+    expect(player.getProperty("rating")).toBe(7);
+    // Нормализация применяется и при восстановлении.
+    expect(player.getProperty("glyph")).toBe("O");
+  });
+
+  it("молча отбрасывает невалидные и чужие свойства снимка", () => {
+    const player = new Player(
+      { id: "p1", name: "Игрок", agent: "human", transport: "local" },
+      schema,
+      { rating: -1, чужое: 1 },
+    );
+
+    expect(player.getProperty("rating")).toBeUndefined();
+    expect(player.getProperty("чужое")).toBeUndefined();
+  });
 });

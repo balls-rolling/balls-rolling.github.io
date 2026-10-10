@@ -19,3 +19,24 @@ export interface SessionSnapshot {
 export interface SessionOptions {
   readonly demo?: boolean;
 }
+
+/**
+ * Снимок игрока для сохранения: те же поля, что и `PlayerSnapshot`. Игровые
+ * свойства — plain-словарь, пригодный для JSON.
+ */
+export type PlayerSave = PlayerSnapshot;
+
+/** Полный снимок партии: снимок, а не реплей. Платформа его не разбирает. */
+export interface SessionSave {
+  readonly players: readonly PlayerSave[];
+  readonly currentPlayerId: string | null;
+  readonly winnerId: string | null;
+  readonly state: SessionState;
+  /** Состояние игры, сериализованное самой игрой (`Game.serializeState`). */
+  readonly gameState: unknown;
+}
+
+/** Вход восстановления сессии в конструктор `Session`. */
+export interface SessionRestore {
+  readonly save: SessionSave;
+}

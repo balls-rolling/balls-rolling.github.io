@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
-import { createStore } from "./index";
+import { FallbackBackend, MemoryBackend, type StorageBackend } from "./backends";
+import { createIdbStore, createStore } from "./index";
 import type { Schema } from "./types";
 
 // В окружении node localStorage отсутствует, поэтому хранилище само берёт
@@ -90,5 +91,84 @@ describe("createStore", () => {
 
     // parse обязан вернуть пригодное значение, а не выбросить.
     await expect(store.read("global", schema)).resolves.toEqual(defaults);
+  });
+
+  it("keys возвращает логические ключи без префикса", async () => {
+    const store = createStore();
+    await store.write("global", { name: "Игрок", sound: false });
+    await store.write("game/demo", { name: "Демо", sound: true });
+
+    expect((await store.keys()).sort()).toEqual(["game/demo", "global"]);
+  });
+
+  it("keys игнорирует чужие ключи без префикса", async () => {
+    // Ключ мимо хранилища — как будто его записал другой код того же origin.
+    const backend = new MemoryBackend();
+    await backend.set("foreign", "чужие данные");
+    const store = createStore(backend);
+    await store.write("global", { name: "Игрок", sound: false });
+
+    await expect(store.keys()).resolves.toEqual(["global"]);
+  });
+
+  it("keys не показывает удалённый ключ", async () => {
+    const store = createStore();
+    await store.write("global", { name: "Игрок", sound: false });
+    await store.write("game/demo", { name: "Демо", sound: true });
+
+    await store.remove("global");
+
+    await expect(store.keys()).resolves.toEqual(["game/demo"]);
+  });
+
+  it("clear удаляет только свои ключи, чужие не трогает", async () => {
+    const backend = new MemoryBackend();
+    await backend.set("foreign", "чужие");
+    const store = createStore(backend);
+    await store.write("global", { name: "Игрок", sound: false });
+    await store.write("game/demo", { name: "Демо", sound: true });
+
+    await store.clear();
+
+    await expect(store.keys()).resolves.toEqual([]);
+    await expect(backend.get("foreign")).resolves.toBe("чужие");
+  });
+
+  it("clear на пустом хранилище не падает", async () => {
+    const store = createStore();
+    await expect(store.clear()).resolves.toBeUndefined();
+  });
+});
+
+describe("FallbackBackend и createIdbStore", () => {
+  function failingBackend(): StorageBackend {
+    return {
+      get: () => Promise.reject(new Error("idb down")),
+      set: () => Promise.reject(new Error("idb down")),
+      remove: () => Promise.reject(new Error("idb down")),
+      keys: () => Promise.reject(new Error("idb down")),
+    };
+  }
+
+  it("при сбое основного бэкенда операции идут в запасной", async () => {
+    const memory = new MemoryBackend();
+    const backend = new FallbackBackend(failingBackend(), memory);
+
+    await backend.set("k", "v");
+    await expect(backend.get("k")).resolves.toBe("v");
+    await expect(backend.keys()).resolves.toEqual(["k"]);
+
+    await backend.remove("k");
+    await expect(backend.get("k")).resolves.toBeNull();
+  });
+
+  it("createIdbStore сохраняет даже без IndexedDB (фолбэк работает)", async () => {
+    const store = createIdbStore();
+    await store.write("game/x", { a: 1 });
+
+    await expect(store.keys()).resolves.toContain("game/x");
+    await expect(store.read("game/x", { defaults: null, parse: (v) => v })).resolves.toEqual({
+      a: 1,
+    });
   });
 });

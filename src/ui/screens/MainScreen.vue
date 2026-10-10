@@ -20,13 +20,26 @@ if (!injectedDialog) throw new Error("Менеджер диалогов не п�
 const dialog = injectedDialog;
 
 const quickGame = ref<GameEntry | null>(null);
+// Есть ли у быстрой игры сохранённая незавершённая партия. Тогда главная кнопка
+// продолжает, а рядом появляется запуск новой.
+const hasSave = ref(false);
 
 onMounted(async () => {
   const settings = await platform.loadGlobalSettings();
   const games = platform.listGames();
   const last = games.find((game) => game.id === settings.lastGameId);
   quickGame.value = last ?? (games.length === 1 ? games[0] : null);
+  hasSave.value = quickGame.value ? await platform.hasSavedSession(quickGame.value.id) : false;
 });
+
+function openQuick(): void {
+  if (!quickGame.value) return;
+  openGame(quickGame.value, hasSave.value ? { resume: true } : undefined);
+}
+
+function openNew(): void {
+  if (quickGame.value) openGame(quickGame.value);
+}
 
 function openGames(): void {
   dialog.show({ component: GamesScreen, title: "Игры" });
@@ -43,11 +56,22 @@ function openSettings(): void {
       v-if="quickGame"
       class="btn btn--primary btn--lg"
       type="button"
-      :title="`Играть в «${quickGame.label}»`"
-      @click="openGame(quickGame)"
+      :title="hasSave ? `Продолжить «${quickGame.label}»` : `Играть в «${quickGame.label}»`"
+      @click="openQuick"
     >
       <Play class="icon" aria-hidden="true" />
-      <span class="btn__label">Играть в «{{ quickGame.label }}»</span>
+      <span class="btn__label">{{
+        hasSave ? `Продолжить «${quickGame.label}»` : `Играть в «${quickGame.label}»`
+      }}</span>
+    </button>
+    <button
+      v-if="quickGame && hasSave"
+      class="btn btn--secondary"
+      type="button"
+      :title="`Новая партия «${quickGame.label}»`"
+      @click="openNew"
+    >
+      <span class="btn__label">Новая партия «{{ quickGame.label }}»</span>
     </button>
     <button class="btn btn--secondary" type="button" title="Игры" @click="openGames">
       <Gamepad2 class="icon" aria-hidden="true" />

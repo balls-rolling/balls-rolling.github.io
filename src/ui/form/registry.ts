@@ -5,6 +5,7 @@ import NumberControl from "./controls/NumberControl.vue";
 import SelectControl from "./controls/SelectControl.vue";
 import TextControl from "./controls/TextControl.vue";
 import ToggleControl from "./controls/ToggleControl.vue";
+import WidgetControl from "@/ui/widgets/WidgetControl.vue";
 
 // Реестр рендереров по `kind`. `kind` — открытая строка, поэтому добавление
 // контролла не требует правки ядра: достаточно зарегистрировать компонент.
@@ -18,6 +19,7 @@ const renderers: Readonly<Record<string, Component>> = Object.freeze({
   toggle: markRaw(ToggleControl),
   select: markRaw(SelectControl),
   button: markRaw(ButtonControl),
+  widget: markRaw(WidgetControl),
 });
 
 /** Рендерер для типа контролла. Неизвестный тип не ошибка — запасной вариант. */

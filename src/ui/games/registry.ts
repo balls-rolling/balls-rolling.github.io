@@ -1,4 +1,5 @@
 import { markRaw, type Component } from "vue";
+import BilliardsUi from "./billiards/BilliardsUi.vue";
 import TicTacToeUi from "./tic-tac/TicTacToeUi.vue";
 
 // Реестр UI игр: id игры → Vue-компонент. UI игры обязан жить в `src/ui/**`,
@@ -8,6 +9,7 @@ import TicTacToeUi from "./tic-tac/TicTacToeUi.vue";
 // Импорты явные (tree-shaking); неизвестная игра — не ошибка, UI просто нет.
 const registry: Readonly<Record<string, Component>> = Object.freeze({
   "tic-tac-toe": markRaw(TicTacToeUi),
+  billiards: markRaw(BilliardsUi),
 });
 
 /** Vue-компонент UI по id игры или `null`, если UI не зарегистрирован. */

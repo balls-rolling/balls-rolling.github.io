@@ -2,6 +2,7 @@
 // в игре, ядро их не разбирает. Рендер и UI — фаза 07.
 import {
   Game,
+  type Dialogs,
   type GameEnvironment,
   type GameRenderFrame,
   type GameState,
@@ -90,6 +91,35 @@ const setupForm: FormSchema = {
         },
       ],
     },
+    {
+      type: "group",
+      id: "tt-network",
+      label: "Сеть",
+      frame: true,
+      orientation: "horizontal",
+      children: [
+        {
+          type: "control",
+          control: {
+            id: "host",
+            kind: "button",
+            label: "Создать",
+            icon: "plus",
+            signals: ["press"],
+          },
+        },
+        {
+          type: "control",
+          control: {
+            id: "join",
+            kind: "button",
+            label: "Присоединиться",
+            icon: "list",
+            signals: ["press"],
+          },
+        },
+      ],
+    },
   ],
 };
 
@@ -116,6 +146,12 @@ export class TicTacToeGame extends Game {
 
   /** Отписки от сигналов формы: снимаются в `detachEnvironment`. */
   #unsubscribe: Array<() => void> = [];
+  /** Идёт сетевое рукопожатие: повторные нажатия игнорируем. */
+  #networkPending = false;
+  /** Инструмент платформы «показать окно». В демо окружения нет — итога нет. */
+  #dialogs: Dialogs | null = null;
+  /** Имена игроков: их игра знает при запуске, в состоянии партии имён нет. */
+  #names = new Map<string, string>();
 
   override getPropertySchema() {
     return propertySchema;
@@ -137,6 +173,7 @@ export class TicTacToeGame extends Game {
 
   override attachEnvironment(environment: GameEnvironment): void {
     const { setup } = environment.game;
+    this.#dialogs = environment.game.dialogs;
     this.#unsubscribe.push(
       setup.on("vs-computer", "press", () => {
         void this.#start(environment, setup, { humans: 1, computers: 1 });
@@ -144,12 +181,36 @@ export class TicTacToeGame extends Game {
       setup.on("hotseat", "press", () => {
         void this.#start(environment, setup, { humans: 2, computers: 0 });
       }),
+      setup.on("host", "press", () => {
+        void this.#launchNetwork(environment, "host");
+      }),
+      setup.on("join", "press", () => {
+        void this.#launchNetwork(environment, "join");
+      }),
     );
   }
 
   override detachEnvironment(): void {
+    // Закрытие экрана преднастроек снимает только подписки на его сигналы.
+    // Инструмент итога не трогаем: партия идёт уже сейчас, а detach прилетает
+    // сразу после запуска — сбросил бы инструмент до конца партии.
     for (const off of this.#unsubscribe) off();
     this.#unsubscribe = [];
+  }
+
+  /** Сетевая партия: лобби собирает состав и транспорт, затем запуск. */
+  async #launchNetwork(environment: GameEnvironment, kind: "host" | "join"): Promise<void> {
+    if (this.#networkPending) return;
+    this.#networkPending = true;
+    try {
+      const players =
+        kind === "host" ? await environment.lobby.showHost() : await environment.lobby.showClient();
+      if (players) await environment.launch(players);
+    } catch {
+      /* Сетевое рукопожатие не удалось — экран лобби сообщит; игра не падает. */
+    } finally {
+      this.#networkPending = false;
+    }
   }
 
   async #start(
@@ -159,7 +220,34 @@ export class TicTacToeGame extends Game {
   ): Promise<void> {
     this.level = clampLevel(Number(setup.getValue("level") ?? 2));
     const players = await environment.lobby.defaultPlayers(roster);
+    this.#names = new Map(players.map((p) => [p.id, p.name]));
     await environment.launch(players);
+  }
+
+  /**
+   * Итог партии: **игра сама решает**, что она закончена (её `applyMove`
+   * вернул победу), и сама просит платформу показать окно. Промис — это ответ
+   * игрока; окно закрыли иначе, чем кнопкой, — отказ, и это не ошибка.
+   * Никаких флагов: новая партия просто доигрывается заново.
+   */
+  async #showResult(winnerId: string | null): Promise<void> {
+    const dialogs = this.#dialogs;
+    if (!dialogs) return;
+    const name = winnerId ? this.#names.get(winnerId) : null;
+    try {
+      const answer = await dialogs.show({
+        title: "Партия окончена",
+        message: name ? `Победил ${name}` : "Ничья",
+        actions: [
+          { label: "Ещё раз", value: "rematch", variant: "primary" },
+          { label: "В меню", value: "menu", variant: "secondary" },
+        ],
+      });
+      if (answer.value === "rematch") dialogs.rematch();
+      else dialogs.exitToMenu();
+    } catch {
+      /* Окно закрыли иначе (выход через меню, смена сессии) — решать нечего. */
+    }
   }
 
   createInitialState(playerIds: readonly string[]): GameState {
@@ -206,6 +294,7 @@ export class TicTacToeGame extends Game {
       lastMove: { x, y },
       winLine: line,
     };
+    if (finished) void this.#showResult(playerId);
     return { accepted: true, state: next, finished, winnerId: next.winnerId };
   }
 
@@ -234,6 +323,82 @@ export class TicTacToeGame extends Game {
 
   isFinished(state: GameState): boolean {
     return (state as TicTacToeState).finished;
+  }
+
+  /**
+   * Состояние крестиков-ноликов в переносимые plain-данные. Наборы камней —
+   * `Set` — не переживают `JSON.stringify`, поэтому раскладываются в массивы
+   * строк. Остальные поля копируются как есть.
+   */
+  override serializeState(state: GameState): unknown {
+    const s = state as TicTacToeState;
+    const sets: Record<string, string[]> = {};
+    for (const [id, stones] of Object.entries(s.sets)) sets[id] = [...stones];
+    return {
+      order: [...s.order],
+      sets,
+      glyphs: { ...s.glyphs },
+      total: s.total,
+      finished: s.finished,
+      winnerId: s.winnerId,
+      lastMove: s.lastMove === null ? null : { x: s.lastMove.x, y: s.lastMove.y },
+      winLine: s.winLine === null ? null : s.winLine.map((c) => ({ x: c.x, y: c.y })),
+    };
+  }
+
+  /**
+   * Восстановить состояние из `serializeState`. Форма строго проверяется,
+   * `Set` собирается заново; при любом несоответствии возвращается `null`
+   * (исключения наружу не летят — сохранение отбрасывает вызывающий).
+   */
+  override deserializeState(data: unknown): GameState | null {
+    if (!isRecord(data)) return null;
+    const { order, sets, glyphs, total, finished, winnerId, lastMove, winLine } = data;
+    if (!isStringArray(order)) return null;
+    if (!isStringArrayRecord(sets)) return null;
+    if (!isStringRecord(glyphs)) return null;
+    if (typeof total !== "number") return null;
+    if (typeof finished !== "boolean") return null;
+    if (winnerId !== null && typeof winnerId !== "string") return null;
+
+    let last: Cell | null = null;
+    if (lastMove !== null) {
+      if (!isCell(lastMove)) return null;
+      last = lastMove;
+    }
+
+    let line: readonly Cell[] | null = null;
+    if (winLine !== null) {
+      if (!Array.isArray(winLine) || !winLine.every(isCell)) return null;
+      line = winLine;
+    }
+
+    const rebuilt: Record<string, ReadonlySet<string>> = {};
+    for (const [id, stones] of Object.entries(sets)) rebuilt[id] = new Set(stones);
+
+    return {
+      order: [...order],
+      sets: rebuilt,
+      glyphs: { ...glyphs },
+      total,
+      finished,
+      winnerId,
+      lastMove: last,
+      winLine: line === null ? null : line.map((c) => ({ x: c.x, y: c.y })),
+    } satisfies TicTacToeState;
+  }
+
+  /** Настройки крестиков-ноликов: уровень ИИ. */
+  override serializeSettings(): unknown {
+    return { level: this.level };
+  }
+
+  /** Применить настройки; `level` клампится в 0..4, иные данные игнорируются. */
+  override applySettings(data: unknown): void {
+    if (!isRecord(data)) return;
+    const level = data.level;
+    if (typeof level !== "number") return;
+    this.level = clampLevel(level);
   }
 
   /** Нарисовать камни, линию победы и метку последнего хода. */
@@ -289,4 +454,30 @@ export class TicTacToeGame extends Game {
 function clampLevel(value: number): number {
   if (!Number.isFinite(value)) return 2;
   return Math.min(4, Math.max(0, Math.trunc(value)));
+}
+
+/** Значение — непустой объект-запись (не массив, не null). */
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+/** Значение — массив строк. */
+function isStringArray(value: unknown): value is string[] {
+  return Array.isArray(value) && value.every((item) => typeof item === "string");
+}
+
+/** Значение — объект, все значения которого — массивы строк. */
+function isStringArrayRecord(value: unknown): value is Record<string, string[]> {
+  return isRecord(value) && Object.values(value).every(isStringArray);
+}
+
+/** Значение — объект, все значения которого — строки. */
+function isStringRecord(value: unknown): value is Record<string, string> {
+  return isRecord(value) && Object.values(value).every((item) => typeof item === "string");
+}
+
+/** Значение — координата клетки `{x, y}` с числами. */
+function isCell(value: unknown): value is Cell {
+  if (!isRecord(value)) return false;
+  return typeof value.x === "number" && typeof value.y === "number";
 }

@@ -4,7 +4,14 @@ import type { GameEntry } from "@/core/game";
 // «открыть игру». Кто именно это делает, регистрируется отдельно — так экраны не
 // зависят от окружения, а окружение от экранов.
 
-export type GameOpener = (entry: GameEntry) => void;
+/** Дополнительные параметры открытия игры (deep-link). */
+export interface GameOpenOptions {
+  readonly net?: { readonly offer: string };
+  /** Возобновить сохранённую партию вместо запуска новой. */
+  readonly resume?: boolean;
+}
+
+export type GameOpener = (entry: GameEntry, options?: GameOpenOptions) => void;
 
 let gameOpener: GameOpener | null = null;
 
@@ -14,6 +21,6 @@ export function registerGameOpener(opener: GameOpener): void {
 }
 
 /** Открыть игру. Если обработчик ещё не зарегистрирован, ничего не происходит. */
-export function openGame(entry: GameEntry): void {
-  gameOpener?.(entry);
+export function openGame(entry: GameEntry, options?: GameOpenOptions): void {
+  gameOpener?.(entry, options);
 }

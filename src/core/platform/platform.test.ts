@@ -122,7 +122,7 @@ describe("Platform", () => {
     const settings: GlobalSettings = {
       name: "Гость",
       playerId: "pid-1",
-      lastGameId: "test-game",
+      lastGameId: "tic-tac-toe",
       themeMode: "dark",
     };
     await platform.saveGlobalSettings(settings);

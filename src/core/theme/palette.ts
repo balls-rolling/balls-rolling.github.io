@@ -5,6 +5,14 @@
 
 const FALLBACK_ACCENT = "#3da96a"; // приятный зелёный
 
+// Цвет системной полосы (meta theme-color) по разрешённой теме. Значение
+// стартового кадра ставит inline-скрипт в index.html; здесь держим его в
+// согласии с темой при смене режима.
+const THEME_COLOR: Record<"light" | "dark", string> = {
+  light: "#ffffff",
+  dark: "#14161a",
+};
+
 /** Режим темы: системный или явный выбор пользователя. */
 export type ThemeMode = "system" | "light" | "dark";
 
@@ -45,10 +53,13 @@ let currentMode: ThemeMode = "system";
 /** Применить палитру по режиму (по умолчанию — текущему). */
 export function applyPalette(mode: ThemeMode = currentMode): void {
   const root = document.documentElement;
-  root.dataset.theme = resolveTheme(mode, prefersDark());
+  const theme = resolveTheme(mode, prefersDark());
+  root.dataset.theme = theme;
   // Производные оттенки (приглушение, смешение) считает CSS через
   // color-mix(in oklch, ...) от --accent, отдельная переменная не нужна.
   root.style.setProperty("--accent", readSystemAccent());
+  // Полоса браузера/системного UI в установленном PWA следует теме.
+  document.querySelector('meta[name="theme-color"]')?.setAttribute("content", THEME_COLOR[theme]);
 }
 
 /** Сменить режим темы в рантайме и сразу применить. */

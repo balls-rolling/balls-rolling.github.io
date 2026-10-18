@@ -4,6 +4,11 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="color-scheme" content="light dark" />
+    <!-- Цвет полосы браузера/системного UI в установленном PWA. Значение до
+         первого кадра ставит inline-скрипт ниже, дальше его держит палитра. -->
+    <meta name="theme-color" content="#ffffff" />
+    <link rel="icon" type="image/png" href="/favicon.png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <!-- Ссылка-приглашение несёт offer (в т.ч. ICE-кандидаты) в query — не отдаём
          его сторонним ресурсам через Referer. -->
     <meta name="referrer" content="no-referrer" />
@@ -29,6 +34,9 @@
           document.documentElement.dataset.theme = resolved;
           var meta = document.querySelector('meta[name="color-scheme"]');
           if (meta) meta.setAttribute("content", resolved);
+          var themeMeta = document.querySelector('meta[name="theme-color"]');
+          if (themeMeta)
+            themeMeta.setAttribute("content", resolved === "dark" ? "#14161a" : "#ffffff");
         } catch (e) {
           /* приватный режим или испорченные данные — остаётся системная схема */
         }

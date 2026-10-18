@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { aimLog, aimNow, aimSince } from "@/debug/perf-log";
 // Viewport — переиспользуемое canvas-поле платформы: камера-окно, панорама, зум,
 // dpr и отсечение видимых клеток. Рисование фигур делегируется
 // игре колбэком `render`; сам Viewport знает только про фон и сетку.
@@ -64,7 +65,10 @@ let dprMedia: MediaQueryList | null = null;
 let drag: { sx: number; sy: number; camera: Camera; moved: number } | null = null;
 
 function scheduleDraw(): void {
-  if (frameId !== null) return;
+  if (frameId !== null) {
+    aimLog("sched", { dropped: true });
+    return;
+  }
   frameId = requestAnimationFrame(() => {
     frameId = null;
     draw();
@@ -105,19 +109,25 @@ function drawGrid(ctx: CanvasRenderingContext2D, bounds: CellBounds): void {
 }
 
 function draw(): void {
+  const v0 = aimNow();
   const cv = canvas.value;
   const host = root.value;
   if (!cv || !host) return;
 
   const width = host.clientWidth || 1;
   const height = host.clientHeight || 1;
-  size.value = { width, height };
   const ratio = window.devicePixelRatio || 1;
-  dpr.value = ratio;
+  // Присваивание размера очищает холст и перевыделяет буфер, поэтому только при изменении.
+  if (size.value.width !== width || size.value.height !== height) size.value = { width, height };
+  if (dpr.value !== ratio) dpr.value = ratio;
 
-  cv.width = Math.round(width * ratio);
-  cv.height = Math.round(height * ratio);
+  const v1 = aimNow();
+  const pxW = Math.round(width * ratio);
+  const pxH = Math.round(height * ratio);
+  if (cv.width !== pxW) cv.width = pxW;
+  if (cv.height !== pxH) cv.height = pxH;
   const ctx = cv.getContext("2d");
+  const v2 = aimNow();
   if (!ctx) return;
 
   ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
@@ -127,6 +137,7 @@ function draw(): void {
   const bounds = visibleBounds(camera.value, size.value, 1);
   if (props.showGrid) drawGrid(ctx, bounds);
 
+  const v3 = aimNow();
   if (props.render) {
     const frame: ViewportFrame = {
       ctx,
@@ -140,6 +151,15 @@ function draw(): void {
     };
     props.render(frame);
   }
+  aimLog("vp", {
+    sizing: Math.round((v1 - v0) * 100) / 100,
+    resize: Math.round((v2 - v1) * 100) / 100,
+    bg: Math.round((v3 - v2) * 100) / 100,
+    render: aimSince(v3),
+    total: aimSince(v0),
+    w: cv.width,
+    h: cv.height,
+  });
 }
 
 function toCanvasPoint(event: PointerEvent | WheelEvent): Point {

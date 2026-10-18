@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <title>canvas-lab: стол бильярда</title>
+    <style>
+      body { margin: 0; background: #0b0f10; color: #ddd; font: 13px sans-serif; display: flex; gap: 16px; padding: 12px; }
+      canvas { background: #000; flex: 0 0 auto; width: 1200px; height: 700px; max-width: none; }
+      .panel { width: 260px; display: flex; flex-direction: column; gap: 8px; }
+      label { display: flex; flex-direction: column; gap: 2px; }
+      output { color: #9cf; }
+    </style>
+  </head>
+  <body>
+    <canvas id="c" width="1200" height="700"></canvas>
+    <div class="panel" id="panel"></div>
+    <script type="module" src="./canvas-lab.ts"></script>
+  </body>
+</html>

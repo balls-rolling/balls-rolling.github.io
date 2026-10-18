@@ -47,7 +47,16 @@ export interface Control {
   readonly flex?: boolean | ControlFlex;
   /** Вариант оформления (для кнопок): цвет/акцент из семантики темы. */
   readonly variant?: ControlVariant;
+  /**
+   * Навигация по экранам преднастройки: кнопка может не запускать игру, а
+   * открыть другое меню (`push` с id экрана из `Game.getSetupForm(screen)`) или
+   * вернуться назад (`pop`). История экранов ведёт платформа.
+   */
+  readonly navigate?: FormNavigation;
 }
+
+/** Переход преднастройки по экранам (история — у платформы). */
+export type FormNavigation = { readonly type: "push"; readonly screen: string } | { readonly type: "pop" };
 
 export type FormOrientation = "vertical" | "horizontal";
 

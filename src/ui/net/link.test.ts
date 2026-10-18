@@ -88,10 +88,10 @@ describe("NetLink", () => {
 
     expect(session.makeMove("p1", { x: 0, y: 0 })).toBe(true);
     expect(link.sendMove({ x: 5, y: 5 })).toBe(true);
-    expect(transport.sent).toContainEqual({ t: "move", x: 5, y: 5 });
+    expect(transport.sent).toContainEqual({ t: "move", m: { x: 5, y: 5 } });
 
     // Входящий ход удалённого игрока.
-    transport.emit({ t: "move", x: 1, y: 1 });
+    transport.emit({ t: "move", m: { x: 1, y: 1 } });
     expect(session.snapshot().currentPlayerId).toBe("p1");
 
     transport.emit({ t: "hello", name: "Соперник" });
@@ -228,6 +228,153 @@ describe("NetLink", () => {
     expect(link.peerLeft.value).toBe(false);
     expect(session.snapshot().players.find((p) => p.id === "p2")?.name).toBe("Соперник");
 
+    link.detach();
+    session.destroy();
+  });
+
+  it("хук игры перехватывает входящий ход вместо makeMove", () => {
+    const session = makeSession();
+    const transport = new FakeTransport();
+    const link = createNetLink();
+    link.configure({ transport, remotePlayerId: "p2", ownName: "Хост" });
+    const seen: unknown[] = [];
+    link.setGameHooks({
+      onRemoteMove: (move, meta) => {
+        seen.push({ move, meta });
+        return true;
+      },
+    });
+    link.attach(session);
+    transport.open();
+
+    transport.emit({ t: "move", m: { angle: 1, power: 0.5 }, seq: 3, hash: 7 });
+    expect(seen).toEqual([{ move: { angle: 1, power: 0.5 }, meta: { seq: 3, hash: 7 } }]);
+    // Хук обработал ход сам: очередь сессии не менялась.
+    expect(session.snapshot().currentPlayerId).toBe("p1");
+
+    link.detach();
+    session.destroy();
+  });
+
+  it("без хука входящий ход применяет session.makeMove", () => {
+    const session = makeSession();
+    const transport = new FakeTransport();
+    const link = createNetLink();
+    link.configure({ transport, remotePlayerId: "p2", ownName: "Хост" });
+    link.attach(session);
+    transport.open();
+
+    // Ход хоста, затем ход удалённого — очередь возвращается хосту.
+    expect(session.makeMove("p1", { x: 0, y: 0 })).toBe(true);
+    transport.emit({ t: "move", m: { x: 1, y: 1 } });
+    expect(session.snapshot().currentPlayerId).toBe("p1");
+
+    link.detach();
+    session.destroy();
+  });
+
+  it("хост отвечает снимком на hello и resync, с настройками", () => {
+    const session = makeSession();
+    const transport = new FakeTransport();
+    const link = createNetLink();
+    link.configure({ transport, remotePlayerId: "p2", ownName: "Хост" });
+    link.setOutgoingState(() => session.save());
+    link.setOutgoingSettings(() => ({ rules: "simple" }));
+    link.attach(session);
+    transport.open();
+
+    // Открытие канала — снимок сразу.
+    expect(transport.sent).toContainEqual({ t: "sync", save: session.save(), settings: { rules: "simple" } });
+
+    transport.emit({ t: "resync" });
+    const syncs = transport.sent.filter((m) => (m as { t?: string }).t === "sync");
+    expect(syncs.length).toBe(2);
+
+    link.detach();
+    session.destroy();
+  });
+
+  it("onStateAdopted вызывается после принятия снимка", () => {
+    const session = makeSession();
+    const transport = new FakeTransport();
+    const link = createNetLink();
+    link.configure({ transport, remotePlayerId: "p2", ownName: "Хост" });
+    const adopted: unknown[] = [];
+    link.setGameHooks({ onStateAdopted: (settings) => adopted.push(settings) });
+    link.attach(session);
+    transport.open();
+
+    const save = {
+      state: "running",
+      players: [
+        { id: "p1", name: "Хост" },
+        { id: "p2", name: "Гость" },
+      ],
+      currentPlayerId: "p2",
+      winnerId: null,
+      gameState: { foo: 1 },
+    };
+    transport.emit({ t: "sync", save, settings: { rules: "tournament" } });
+    expect(adopted).toEqual([{ rules: "tournament" }]);
+    expect(session.snapshot().currentPlayerId).toBe("p2");
+
+    link.detach();
+    session.destroy();
+  });
+
+  it("sendPrep/sendShot шлют сообщения, remotePrep/remoteShot идут в хуки (02-e)", () => {
+    const session = makeSession();
+    const transport = new FakeTransport();
+    const link = createNetLink();
+    link.configure({ transport, remotePlayerId: "p2", ownName: "Хост" });
+    const preps: unknown[] = [];
+    const shots: unknown[] = [];
+    link.setGameHooks({
+      onRemotePrep: (prep) => preps.push(prep),
+      onRemoteShot: (move, seq) => {
+        shots.push({ move, seq });
+        return true;
+      },
+    });
+    link.attach(session);
+    transport.open();
+
+    expect(link.sendPrep({ angle: 1, power: 0.5, cue: null })).toBe(true);
+    expect(transport.sent).toContainEqual({ t: "prep", p: { angle: 1, power: 0.5, cue: null } });
+    expect(link.sendShot({ angle: 1, power: 0.5 }, 3)).toBe(true);
+    expect(transport.sent).toContainEqual({ t: "shot", m: { angle: 1, power: 0.5 }, seq: 3 });
+
+    transport.emit({ t: "prep", p: { angle: 2, power: 0.1 } });
+    expect(preps).toEqual([{ angle: 2, power: 0.1 }]);
+    transport.emit({ t: "shot", m: { angle: 0, power: 1 }, seq: 4 });
+    expect(shots).toEqual([{ move: { angle: 0, power: 1 }, seq: 4 }]);
+
+    link.detach();
+    session.destroy();
+  });
+
+  it("sendPrep/sendShot молчат без открытого канала", () => {
+    const session = makeSession();
+    const transport = new FakeTransport();
+    const link = createNetLink();
+    link.configure({ transport, remotePlayerId: "p2", ownName: "Хост" });
+    link.attach(session);
+    // Канал в состоянии connecting.
+    expect(link.sendPrep({ angle: 0, power: 0 })).toBe(false);
+    expect(link.sendShot({ angle: 0, power: 0 }, 1)).toBe(false);
+    link.detach();
+    session.destroy();
+  });
+
+  it("signalPeerUnresponsive выставляет peerLeft", () => {
+    const session = makeSession();
+    const transport = new FakeTransport();
+    const link = createNetLink();
+    link.configure({ transport, remotePlayerId: "p2", ownName: "Хост" });
+    link.attach(session);
+    expect(link.peerLeft.value).toBe(false);
+    link.signalPeerUnresponsive();
+    expect(link.peerLeft.value).toBe(true);
     link.detach();
     session.destroy();
   });

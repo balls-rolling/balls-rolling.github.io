@@ -40,4 +40,31 @@ describe("DialogManager", () => {
 
     expect(manager.screens.value).toHaveLength(1);
   });
+
+  it("верхний экран может обработать «назад» во внутренней истории", () => {
+    const manager = new DialogManager();
+    manager.show({ component: noop, closable: true });
+    const innerBack = vi.fn(() => true);
+    const unregister = manager.registerBackHandler(innerBack);
+
+    manager.back();
+    expect(innerBack).toHaveBeenCalledOnce();
+    expect(manager.screens.value).toHaveLength(1);
+
+    unregister();
+    manager.back();
+    expect(manager.screens.value).toHaveLength(0);
+  });
+
+  it("back handler скрытого нижнего экрана не перехватывает возврат сверху", () => {
+    const manager = new DialogManager();
+    manager.show({ component: noop, closable: true });
+    const lowerBack = vi.fn(() => true);
+    manager.registerBackHandler(lowerBack);
+    manager.show({ component: noop });
+
+    manager.back();
+    expect(lowerBack).not.toHaveBeenCalled();
+    expect(manager.screens.value).toHaveLength(1);
+  });
 });

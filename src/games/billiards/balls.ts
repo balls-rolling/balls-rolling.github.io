@@ -1,5 +1,7 @@
-// Определения классических 16 шаров. Чистые данные, без DOM.
-import { BALL_COLORS, BALL_MASS, BALL_RADIUS } from "./constants";
+// Определения шаров режима. Чистые данные, без DOM.
+// Набор строится из конфига режима (modes/types): цвет, диаметр и масса оттуда,
+// вид шара (биток/сплошной/восьмёрка/полосатый) по-прежнему различается по id.
+import type { ModeConfig } from "./modes/types";
 
 /** Тип шара. */
 export type BallKind = "cue" | "solid" | "eight" | "stripe";
@@ -13,21 +15,20 @@ export interface BallDef {
   readonly mass: number;
 }
 
-function kindOf(id: number): BallKind {
+/** Вид шара по номеру: 0 — биток, 1–7 сплошные, 8 — восьмёрка, 9–15 полосатые. */
+export function kindOf(id: number): BallKind {
   if (id === 0) return "cue";
   if (id === 8) return "eight";
   if (id >= 1 && id <= 7) return "solid";
   return "stripe";
 }
 
-/** Все 16 шаров: 0 — биток, 1–7 сплошные, 8 чёрный, 9–15 полосатые. */
-export const BALLS: readonly BallDef[] = BALL_COLORS.map((color, id) => ({
-  id,
-  kind: kindOf(id),
-  color,
-  radius: BALL_RADIUS,
-  mass: BALL_MASS,
-}));
+/** Набор шаров режима: цвета/диаметр/масса из конфига, вид — по id. */
+export function ballsOf(config: ModeConfig): readonly BallDef[] {
+  const { colors, diameter, mass } = config.balls;
+  const radius = diameter / 2;
+  return colors.map((color, id) => ({ id, kind: kindOf(id), color, radius, mass }));
+}
 
 /** Сплошной шар (1–7). */
 export function isSolid(id: number): boolean {
@@ -39,7 +40,7 @@ export function isStripe(id: number): boolean {
   return id >= 9 && id <= 15;
 }
 
-/** Цвет шара по id (безопасный фолбэк). */
-export function colorOf(id: number): string {
-  return BALL_COLORS[id] ?? "#000000";
+/** Цвет шара режима по id (безопасный фолбэк, если цвета нет в конфиге). */
+export function colorOf(id: number, config: ModeConfig): string {
+  return config.balls.colors[id] ?? "#000000";
 }

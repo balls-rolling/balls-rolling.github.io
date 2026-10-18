@@ -49,9 +49,12 @@ describe("сетевой слой ядра", () => {
     let peerLeft = false;
     const api: NetApi = {
       setPeerName: (name) => session.renamePlayer("p2", name),
-      remoteMove: (x, y) => session.makeMove("p2", { x, y }),
+      remoteMove: (move) => session.makeMove("p2", move),
+      remotePrep: () => {},
+      remoteShot: () => {},
       remoteSurrender: () => session.concede("p2"),
       applyRemoteState: () => {},
+      requestResync: () => {},
       peerLeft: () => {
         peerLeft = true;
       },
@@ -59,7 +62,7 @@ describe("сетевой слой ядра", () => {
 
     // Хост ходит первым, затем ход переходит к удалённому гостю.
     expect(session.makeMove("p1", { x: 0, y: 0 })).toBe(true);
-    expect(applyNetMessage({ t: "move", x: 1, y: 1 }, api)).toBe(true);
+    expect(applyNetMessage({ t: "move", m: { x: 1, y: 1 } }, api)).toBe(true);
     expect(session.snapshot().currentPlayerId).toBe("p1");
 
     expect(applyNetMessage({ t: "hello", name: "Соперник" }, api)).toBe(true);

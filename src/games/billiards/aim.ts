@@ -2,8 +2,9 @@
 // шары, борта/облицовки, лузы. От борта — отскок и продолжение, предел пути —
 // 1.5 длины стола (D3/D8). При первом касании шара — гост и векторы цели/отката.
 import { BALL_RADIUS, E_RAIL, TABLE_LENGTH, TANG_KEEP_RAIL } from "./constants";
-import { buildTableGeometry, type Point, type Segment } from "./geometry";
+import { type Point, type Segment, type TableGeometry } from "./geometry";
 import type { BallState, BilliardsState } from "./state";
+import { kindOf } from "./balls";
 
 /** Предел длины траектории-подсказки: 1.5 длины стола. */
 export const AIM_MAX_PATH = 1.5 * TABLE_LENGTH;
@@ -30,6 +31,8 @@ export interface AimBallHit {
   readonly targetDir: Point;
   /** Направление отката битка (единичное) или `null`, если удар по центру. */
   readonly cueDir: Point | null;
+  /** Доля скорости битка после контакта, 0..1; гасит звёздчатый луч у касательной. */
+  readonly cueStrength: number;
 }
 
 /** Результат трассировки: ломаная (старт + точки отскоков) и, если был, контакт. */
@@ -41,31 +44,53 @@ export interface AimTrace {
 const EPS = 1e-6;
 
 /**
- * Целевой шар без правил режима: минимальный номер среди активных (кроме
- * битка); если номеров нет — ближайший к битку. Правила режимов уточнят выбор.
+ * Целевой шар по правилам, а не по геометрии (решение пользователя 2026-10-17):
+ * на разбитии — вершина пирамиды (шар 1); дальше — наименьший номер из шаров,
+ * которые должен забивать ходящий (сплошные 1–7 или полосатые 9–15); при
+ * открытом столе — наименьший групповой шар; после зачистки группы — восьмёрка.
+ * Без шаров — null.
  */
 export function pickTarget(state: BilliardsState): BallState | null {
   const cue = state.balls.find((b) => b.id === 0 && b.active);
-  const others = state.balls.filter((b) => b.active && b.id !== 0);
-  if (others.length === 0) return null;
-  const numbered = others.filter((b) => b.id > 0);
-  if (numbered.length > 0) {
-    return numbered.reduce((a, b) => (b.id < a.id ? b : a));
-  }
-  if (!cue) return others[0] ?? null;
-  return others.reduce((a, b) => {
-    const da = Math.hypot(a.x - cue.x, a.y - cue.y);
-    const db = Math.hypot(b.x - cue.x, b.y - cue.y);
-    return db < da ? b : a;
-  });
+  const active = state.balls.filter((b) => b.active && b.id !== 0);
+  if (!cue || active.length === 0) return null;
+  const pool = targetPool(state, active);
+  let best: BallState | null = null;
+  for (const ball of pool) if (best === null || ball.id < best.id) best = ball;
+  return best;
 }
 
-/** Угол прицела по умолчанию — на центр целевого шара (или `null`, если цели нет). */
+/**
+ * Шары, из которых по правилам выбирается цель удара: разбитие — вершина,
+ * далее — свои шары группы, после зачистки — восьмёрка, на открытом столе —
+ * групповые. Единственный источник этой логики (используют `pickTarget` и ИИ).
+ */
+export function legalTargets(state: BilliardsState): readonly BallState[] {
+  const active = state.balls.filter((b) => b.active && b.id !== 0);
+  return targetPool(state, active);
+}
+
+/** Множество шаров, из которого выбирается цель по правилам. */
+function targetPool(state: BilliardsState, active: readonly BallState[]): readonly BallState[] {
+  if (state.phase === "open" && state.shotSeq === 0) {
+    const apex = active.find((b) => b.id === 1);
+    if (apex) return [apex];
+  }
+  const shooter = state.order[state.turn];
+  const group = shooter !== undefined ? state.groups?.[shooter] : undefined;
+  if (group !== undefined) {
+    const own = active.filter((b) => kindOf(b.id) === group);
+    return own.length > 0 ? own : active.filter((b) => b.id === 8);
+  }
+  const groupBalls = active.filter((b) => b.id !== 8);
+  return groupBalls.length > 0 ? groupBalls : active;
+}
+
+/** Угол прицела по умолчанию — на центр целевого шара (или null, если цели нет). */
 export function aimAngleToTarget(state: BilliardsState): number | null {
   const cue = state.balls.find((b) => b.id === 0 && b.active);
   const target = pickTarget(state);
-  if (!cue || !target) return null;
-  return Math.atan2(target.y - cue.y, target.x - cue.x);
+  return cue && target ? Math.atan2(target.y - cue.y, target.x - cue.x) : null;
 }
 
 function normalize(v: Point): Point {
@@ -122,11 +147,14 @@ function rayCircle(
  * Трассировать траекторию битка по углу `angle` из текущего состояния.
  * Не симуляция: чистые пересечения луча с шарами, отрезками и лузами.
  */
-export function traceAim(state: BilliardsState, angle: number): AimTrace {
+export function traceAim(
+  state: BilliardsState,
+  angle: number,
+  geometry: TableGeometry,
+): AimTrace {
   const cue = state.balls.find((b) => b.id === 0 && b.active);
   if (!cue) return { path: [], hitBall: null };
 
-  const geometry = buildTableGeometry();
   const pockets = geometry.pockets;
   const segments = geometry.segments;
   const others = state.balls.filter((b) => b.active && b.id !== 0);
@@ -137,6 +165,7 @@ export function traceAim(state: BilliardsState, angle: number): AimTrace {
   let dy = Math.sin(angle);
   const path: Point[] = [{ x: px, y: py }];
   let remaining = AIM_MAX_PATH;
+  let firstHit: AimTrace["hitBall"] = null;
 
   for (let bounce = 0; bounce <= 8 && remaining > EPS; bounce += 1) {
     // Ближайший шар: центр битка не может подойти к чужому центру ближе 2R.
@@ -194,19 +223,45 @@ export function traceAim(state: BilliardsState, angle: number): AimTrace {
     remaining -= t;
 
     if (kind === "ball" && bestBall) {
+      // Линия центров: целевой шар уходит по ней, биток — по касательной
+      // составляющей. Порог отсекает почти касательные удары: там
+      // направление битка физически неопределимо и «дёргалось» при мелкой
+      // правке угла.
       const toBall = normalize({ x: bestBall.cx - ex, y: bestBall.cy - ey });
       const dot = dx * toBall.x + dy * toBall.y;
       const cuePerp = { x: dx - dot * toBall.x, y: dy - dot * toBall.y };
       const perpLen = Math.hypot(cuePerp.x, cuePerp.y);
-      return {
-        path,
-        hitBall: {
-          ballId: bestBall.id,
-          ghost: { x: ex, y: ey },
-          targetDir: toBall,
-          cueDir: perpLen > 0.05 ? { x: cuePerp.x / perpLen, y: cuePerp.y / perpLen } : null,
-        },
+      // Срез не имеет мёртвой зоны: порог в доли радиана заставляет гост
+      // внезапно исчезать и появляться с другой стороны при малом изменении угла.
+      const CUT_EPS = 1e-6;
+      const cut = perpLen >= CUT_EPS
+        ? { x: cuePerp.x / perpLen, y: cuePerp.y / perpLen }
+        : null;
+
+      // Продолжение пути битка после контакта: он идёт по касательной и может
+      // отражаться от бортов — линия прицела не обрывается на призраке удара.
+      if (firstHit !== null) return { path, hitBall: firstHit };
+      firstHit = {
+        ballId: bestBall.id,
+        ghost: { x: ex, y: ey },
+        targetDir: toBall,
+        cueDir: cut,
+        cueStrength: perpLen,
       };
+      if (cut === null) {
+        return { path, hitBall: firstHit };
+      }
+      // После контакта исключаем именно эту цель: иначе повторный тест луча
+      // от граничной точки даёт нестабильное «повторное касание» и зубчатый
+      // путь при малых изменениях угла.
+      const hitIndex = others.findIndex((ball) => ball.id === bestBall.id);
+      if (hitIndex >= 0) others.splice(hitIndex, 1);
+      px = ex + cut.x * 0.1;
+      py = ey + cut.y * 0.1;
+      dx = cut.x;
+      dy = cut.y;
+      remaining = Math.max(0, remaining * perpLen - 0.1);
+      continue;
     }
     if (kind === "segment" && bestSeg) {
       // Отскок по нормали внутрь поля с демпфированием, как в физике.
@@ -223,11 +278,12 @@ export function traceAim(state: BilliardsState, angle: number): AimTrace {
       dy = nd.y;
       px = ex + dx * 0.1;
       py = ey + dy * 0.1;
+      remaining -= 0.1; // сдвиг после отскока тоже входит в предел пути
       continue;
     }
     // Луза или предел пути — траектория закончена.
-    return { path, hitBall: null };
+    return { path, hitBall: firstHit };
   }
 
-  return { path, hitBall: null };
+  return { path, hitBall: firstHit };
 }

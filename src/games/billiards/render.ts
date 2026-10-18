@@ -2,24 +2,21 @@
 // Камеру платформы не используем (см. CONTEXT E2 и PLAN «Решения»).
 import type { GameRenderFrame } from "@/core/game";
 import { traceAim } from "./aim";
-import { BALLS } from "./balls";
-import {
-  BACKDROP_COLOR,
-  BALL_RADIUS,
-  FELT_COLOR,
-  MARKING_COLOR,
-  POCKET_COLOR,
-  RAIL_COLOR,
-  RAIL_WIDTH,
-  TABLE_LENGTH,
-  TABLE_WIDTH,
-} from "./constants";
-import { buildTableGeometry, type Point } from "./geometry";
+import { aimLog, aimNow, aimSince } from "@/debug/perf-log";
+import { ballCanvasSize, ballShadow, renderBall } from "./ball-art";
+import { getBallLayer, getStaticLayer } from "./cache";
+import { BALL_RADIUS, RAIL_WIDTH, TABLE_LENGTH, TABLE_WIDTH } from "./constants";
+import { type Point, type TableGeometry } from "./geometry";
 import type { BilliardsState } from "./state";
+import type { CuePreview } from "./physics";
+import { dropRollPoses, poseOf, type RollPose } from "./roll";
+import { paintTable } from "./table-art";
+import { makeCanvas, paintBackdrop } from "./textures";
 
 /** Минимальный отступ стола от края кадра: реальный «воздух» даёт рейка,
- *  а место под панели игра резервирует инсетами. */
-export const FIT_PADDING = 4;
+ *  а место под панели игра резервирует инсетами. Хром луз выступает за рейку,
+ *  поэтому запас больше, чем нужно голому столу. */
+export const FIT_PADDING = 10;
 
 /** Трансформация «мм → пиксели окна» для схемы. */
 export interface FitTransform {
@@ -70,99 +67,162 @@ function fillCircle(
   ctx.fill();
 }
 
-/** Траектория прицела точками: до первого шара (гост + векторы) либо с
- *  отскоками от бортов до предела пути. Кий не рисуется (D4, рюшечки 05+). */
-function drawAim(ctx: CanvasRenderingContext2D, state: BilliardsState, angle: number): void {
-  const trace = traceAim(state, angle);
-  if (trace.path.length < 2) return;
+/**
+ * Цвета линии прицела (02-e): свой ход — белый, чужой (ИИ/сеть) — бледно-оранжевый.
+ * Цвет — параметр вида: все ветки рендера получают один и тот же набор (урок п.7).
+ */
+const AIM_OWN = { path: "#f4f4f0", contact: "rgba(244,244,240,0.75)" } as const;
+const AIM_PALE = { path: "rgba(255,178,102,0.9)", contact: "rgba(255,178,102,0.75)" } as const;
 
-  // Точки вдоль ломаной траектории.
-  const step = BALL_RADIUS * 0.75;
-  ctx.fillStyle = "#f4f4f0";
-  for (let i = 0; i + 1 < trace.path.length; i += 1) {
-    const a = trace.path[i]!;
-    const b = trace.path[i + 1]!;
-    const segLen = Math.hypot(b.x - a.x, b.y - a.y);
-    const ux = (b.x - a.x) / (segLen || 1);
-    const uy = (b.y - a.y) / (segLen || 1);
-    for (let d = 0; d < segLen; d += step) {
-      fillCircle(ctx, { x: a.x + ux * d, y: a.y + uy * d }, 3.2, "#f4f4f0");
-    }
+/** Точки вдоль ломаной с равным шагом (без привязки к шагам просчёта). */
+function dotAlong(
+  ctx: CanvasRenderingContext2D,
+  path: readonly Point[],
+  step: number,
+  color: string,
+  opacity = 1,
+  fade = true,
+): void {
+  if (path.length < 2) return;
+  let total = 0;
+  for (let i = 1; i < path.length; i += 1) {
+    total += Math.hypot(path[i]!.x - path[i - 1]!.x, path[i]!.y - path[i - 1]!.y);
   }
+  if (total <= 0) return;
+  let target = 0;
+  let seg = 1;
+  let segStart = 0;
+  let segLen = Math.hypot(path[1]!.x - path[0]!.x, path[1]!.y - path[0]!.y);
+  while (target <= total + 1e-6) {
+    while (seg < path.length - 1 && segStart + segLen < target) {
+      segStart += segLen;
+      seg += 1;
+      segLen = Math.hypot(path[seg]!.x - path[seg - 1]!.x, path[seg]!.y - path[seg - 1]!.y);
+    }
+    const a = path[seg - 1]!;
+    const b = path[seg]!;
+    const t = segLen > 0 ? (target - segStart) / segLen : 0;
+    const alpha = opacity * (fade ? Math.max(0.08, 0.95 * (1 - target / total)) : 0.9);
+    ctx.globalAlpha = alpha;
+    fillCircle(ctx, { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t }, 3.2, color);
+    target += step;
+  }
+  ctx.globalAlpha = 1;
+}
 
-  const hit = trace.hitBall;
-  if (!hit) return;
-
-  // Гост-круг: куда встанет биток в момент контакта.
+/** Предсказанный пунктир, обрезанный по игровому полю. */
+function drawPreviewPath(
+  ctx: CanvasRenderingContext2D,
+  path: readonly Point[],
+  color: string,
+  opacity: number,
+  complete = true,
+): void {
+  if (path.length < 2) return;
+  ctx.save();
   ctx.beginPath();
-  ctx.arc(hit.ghost.x, hit.ghost.y, BALL_RADIUS, 0, Math.PI * 2);
-  ctx.strokeStyle = "rgba(244,244,240,0.75)";
+  ctx.rect(0, 0, TABLE_LENGTH, TABLE_WIDTH);
+  ctx.clip();
+  dotAlong(ctx, path, BALL_RADIUS * 0.75, color, opacity, complete);
+  ctx.restore();
+}
+
+/** Призрак столкновения и направления после контакта из одного снимка физики. */
+function drawPreviewContact(
+  ctx: CanvasRenderingContext2D,
+  contact: NonNullable<CuePreview["contact"]>,
+  circleColor: string,
+  opacity: number,
+): void {
+  ctx.save();
+  ctx.globalAlpha = opacity;
+  ctx.beginPath();
+  ctx.arc(contact.cuePoint.x, contact.cuePoint.y, BALL_RADIUS, 0, Math.PI * 2);
+  ctx.strokeStyle = circleColor;
   ctx.lineWidth = 2;
   ctx.stroke();
 
-  // Короткий вектор цели (куда уйдёт отлетевший шар).
-  const vecLen = BALL_RADIUS * 6;
+  const vecBase = BALL_RADIUS * 5;
   ctx.lineWidth = 3;
-  ctx.strokeStyle = "rgba(120,220,255,0.9)";
-  ctx.beginPath();
-  ctx.moveTo(hit.ghost.x, hit.ghost.y);
-  ctx.lineTo(hit.ghost.x + hit.targetDir.x * vecLen, hit.ghost.y + hit.targetDir.y * vecLen);
-  ctx.stroke();
-
-  // Короткий вектор отката битка (если удар не по центру).
-  if (hit.cueDir) {
-    ctx.strokeStyle = "rgba(255,215,110,0.9)";
+  const vectors = [
+    { point: contact.targetPoint, velocity: contact.targetVelocity, color: "rgba(120,220,255,0.9)" },
+    { point: contact.cuePoint, velocity: contact.cueVelocity, color: "rgba(255,215,110,0.85)" },
+  ];
+  const speeds = vectors.map((v) => Math.hypot(v.velocity.x, v.velocity.y));
+  const maxSpeed = Math.max(...speeds, 1);
+  for (const [index, vector] of vectors.entries()) {
+    const length = speeds[index] ?? 0;
+    if (length < 1e-6) continue;
+    const vecLen = vecBase * (0.35 + 0.65 * (length / maxSpeed));
+    ctx.strokeStyle = vector.color;
     ctx.beginPath();
-    ctx.moveTo(hit.ghost.x, hit.ghost.y);
-    ctx.lineTo(hit.ghost.x + hit.cueDir.x * vecLen, hit.ghost.y + hit.cueDir.y * vecLen);
+    ctx.moveTo(vector.point.x, vector.point.y);
+    ctx.lineTo(
+      vector.point.x + (vector.velocity.x / length) * vecLen,
+      vector.point.y + (vector.velocity.y / length) * vecLen,
+    );
     ctx.stroke();
   }
+  ctx.restore();
 }
 
-function drawBall(ctx: CanvasRenderingContext2D, ball: BilliardsState["balls"][number]): void {
-  const def = BALLS[ball.id];
-  const point: Point = { x: ball.x, y: ball.y };
-  if (def && def.kind === "stripe") {
-    // Полосатый: белый шар с цветной полосой по центру.
-    fillCircle(ctx, point, BALL_RADIUS, "#f4f4f0");
-    ctx.save();
-    ctx.beginPath();
-    ctx.arc(point.x, point.y, BALL_RADIUS, 0, Math.PI * 2);
-    ctx.clip();
-    ctx.fillStyle = def.color;
-    ctx.fillRect(
-      point.x - BALL_RADIUS,
-      point.y - BALL_RADIUS * 0.55,
-      BALL_RADIUS * 2,
-      BALL_RADIUS * 1.1,
-    );
-    ctx.restore();
-  } else {
-    fillCircle(ctx, point, BALL_RADIUS, def ? def.color : "#000000");
+/** Старый полный прогноз остаётся приглушённым, пока новый уточняется. */
+function drawAim(ctx: CanvasRenderingContext2D, state: BilliardsState, view: AimView): void {
+  const angle = view.aim;
+  if (angle === null) return;
+  const colors = view.aimPale ? AIM_PALE : AIM_OWN;
+  const previous = view.previousPreview ?? null;
+  const current = view.preview ?? null;
+  if (previous) {
+    drawPreviewPath(ctx, previous.path, colors.path, 0.3);
+    if (previous.contact) drawPreviewContact(ctx, previous.contact, colors.contact, 0.45);
   }
-
-  ctx.lineWidth = 1.5;
-  ctx.strokeStyle = "#0d0d0d";
-  ctx.beginPath();
-  ctx.arc(point.x, point.y, BALL_RADIUS, 0, Math.PI * 2);
-  ctx.stroke();
-
-  if (ball.id > 0) {
-    ctx.fillStyle = "#ffffff";
-    ctx.font = `${Math.round(BALL_RADIUS * 0.9)}px sans-serif`;
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.fillText(String(ball.id), point.x, point.y);
+  if (current) {
+    drawPreviewPath(ctx, current.path, colors.path, 1, current.complete);
+    if (current.contact) drawPreviewContact(ctx, current.contact, colors.contact, 1);
+  } else if (!previous) {
+    // Запасной путь без физики (первый кадр): прямой луч без продолжений.
+    drawPreviewPath(ctx, traceAim(state, angle, view.geometry).path, colors.path, 1);
   }
 }
 
-/** Параметры вида прицела: угол, стрелки перемещения и их анимация. */
+/** Шар: мягкая тень на сукне и сфера в текущей ориентации (полосы и номер на поверхности). */
+function drawBall(
+  ctx: CanvasRenderingContext2D,
+  ball: BilliardsState["balls"][number],
+  pose: RollPose,
+  pxPerMm: number,
+): void {
+  const diameterPx = Math.max(6, Math.round(2 * BALL_RADIUS * pxPerMm));
+  const shadow = ballShadow(diameterPx);
+  const shadowMm = shadow.width / pxPerMm;
+  ctx.drawImage(shadow, ball.x - shadowMm / 2, ball.y - shadowMm / 2, shadowMm, shadowMm);
+  const sphere = renderBall(ball.id, diameterPx, pose.rot);
+  const sphereMm = ballCanvasSize(diameterPx) / pxPerMm;
+  ctx.drawImage(sphere, ball.x - sphereMm / 2, ball.y - sphereMm / 2, sphereMm, sphereMm);
+}
+
+/** Параметры вида прицела: геометрия стола, режим, угол, предпросмотр пути,
+ *  стрелки и их анимация. Геометрию и ключ режима задаёт игра (задача 8);
+ *  рендер не владеет геометрией и не собирает её сам. */
 export interface AimView {
+  /** Геометрия стола активного режима (та же, что у физики и ввода). */
+  readonly geometry: TableGeometry;
+  /** Сигнатура режима для ключей кэша: смена режима перестраивает слои. */
+  readonly modeKey: string;
   readonly aim: number | null;
+  /** Прицел чужого участника (ИИ/сеть) — бледно-оранжевый (02-e). */
+  readonly aimPale?: boolean;
+  /** Короткий предпросмотр пути битка честной физикой (считает игра). */
+  readonly preview?: CuePreview;
+  /** Последний завершённый путь во время уточнения нового. */
+  readonly previousPreview?: CuePreview;
   readonly arrows?: boolean;
   readonly hover?: boolean;
   readonly blink?: number;
   readonly insets?: FitInsets;
+  /** Прицел рисуется отдельным холстом (overlay): основной кадр его не трогает. */
+  readonly overlayAim?: boolean;
 }
 
 /** Стрелки-индикаторы перемещения вокруг шара (вверх/вниз/влево/вправо). */
@@ -196,72 +256,140 @@ function drawMoveArrows(
   }
 }
 
-/** Нарисовать схему: сукно, рейку, лузы, разметку и шары. */
+/** Ключ статичного слоя: меняется при смене режима, размера, DPR или fit. */
+export function staticLayerKey(
+  size: { readonly width: number; readonly height: number },
+  dpr: number,
+  fit: FitTransform,
+  modeKey: string,
+): string {
+  return `${modeKey}|${size.width}x${size.height}@${dpr}|${fit.scale}|${fit.offsetX}|${fit.offsetY}`;
+}
+
+/** Ключ шара включает режим, состояние/позу, чтобы кэш не пережил смену
+ *  геометрии, движение или вращение. */
+export function ballLayerKey(
+  size: { readonly width: number; readonly height: number },
+  dpr: number,
+  fit: FitTransform,
+  modeKey: string,
+  balls: readonly {
+    readonly id: number;
+    readonly x: number;
+    readonly y: number;
+    readonly rot: RollPose["rot"];
+  }[],
+): string {
+  const ballKey = balls
+    .map((ball) => `${ball.id}:${ball.x},${ball.y}:${ball.rot.join(",")}`)
+    .join(";");
+  return `${modeKey}|${size.width}x${size.height}@${dpr}|${fit.scale}|${fit.offsetX}|${fit.offsetY}|${ballKey}`;
+}
+
+/** Статичный слой: фон и весь стол (рейка, борт, сукно, лузы, набойки) — одним холстом. */
+function buildStaticLayer(
+  size: { readonly width: number; readonly height: number },
+  dpr: number,
+  fit: FitTransform,
+  geometry: TableGeometry,
+): HTMLCanvasElement {
+  const canvas = makeCanvas(size.width * dpr, size.height * dpr);
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return canvas;
+  ctx.scale(dpr, dpr);
+  paintBackdrop(ctx, size.width, size.height);
+  ctx.translate(fit.offsetX, fit.offsetY);
+  ctx.scale(fit.scale, fit.scale);
+  paintTable(ctx, geometry);
+  return canvas;
+}
+
+function buildBallLayer(
+  size: { readonly width: number; readonly height: number },
+  dpr: number,
+  fit: FitTransform,
+  balls: readonly { readonly ball: BilliardsState["balls"][number]; readonly pose: RollPose }[],
+): HTMLCanvasElement {
+  const canvas = makeCanvas(size.width * dpr, size.height * dpr);
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return canvas;
+  ctx.scale(dpr, dpr);
+  ctx.translate(fit.offsetX, fit.offsetY);
+  ctx.scale(fit.scale, fit.scale);
+  const pxPerMm = fit.scale * dpr;
+  for (const { ball, pose } of balls) drawBall(ctx, ball, pose, pxPerMm);
+  return canvas;
+}
+
+/** Нарисовать схему: статичный слой один раз, затем шары и прицел. */
 export function drawBilliards(
   state: BilliardsState,
   frame: GameRenderFrame,
-  view: AimView = { aim: null },
+  view: AimView,
 ): void {
+  const d0 = aimNow();
   const { ctx } = frame;
+  const { geometry, modeKey } = view;
   const aim = view.aim;
   const fit = computeFit(frame.size, FIT_PADDING, view.insets ?? ZERO_INSETS);
 
-  // Тёмная подложка на весь кадр — вокруг стола фон не в тон сукну.
+  let staticBuilt = false;
+  const layer = getStaticLayer(staticLayerKey(frame.size, frame.dpr, fit, modeKey), () => {
+    staticBuilt = true;
+    // Причина пересборки стола: какой параметр поля изменился (размер, DPR, fit).
+    aimLog("stbuild", {
+      w: frame.size.width,
+      h: frame.size.height,
+      dpr: frame.dpr,
+      scale: Math.round(fit.scale * 1000) / 1000,
+      ox: Math.round(fit.offsetX),
+      oy: Math.round(fit.offsetY),
+    });
+    return buildStaticLayer(frame.size, frame.dpr, fit, geometry);
+  });
+  const d1 = aimNow();
   ctx.save();
-  ctx.fillStyle = BACKDROP_COLOR;
-  ctx.fillRect(0, 0, frame.size.width, frame.size.height);
+  ctx.drawImage(layer, 0, 0, frame.size.width, frame.size.height);
   ctx.restore();
+  const d2 = aimNow();
 
-  const geometry = buildTableGeometry();
+  const renderedBalls: { ball: BilliardsState["balls"][number]; pose: RollPose }[] = [];
+  const activeIds = new Set<number>();
+  for (const ball of state.balls) {
+    if (!ball.active) continue;
+    activeIds.add(ball.id);
+    renderedBalls.push({ ball, pose: poseOf(ball.id, ball.x, ball.y) });
+  }
+  dropRollPoses(activeIds);
+
+  let ballsBuilt = false;
+  const d3 = aimNow();
+  if (aim !== null || view.overlayAim) {
+    const poses = renderedBalls.map(({ ball, pose }) => ({
+      id: ball.id,
+      x: ball.x,
+      y: ball.y,
+      rot: pose.rot,
+    }));
+    const ballsLayer = getBallLayer(ballLayerKey(frame.size, frame.dpr, fit, modeKey, poses), () => {
+      ballsBuilt = true;
+      return buildBallLayer(frame.size, frame.dpr, fit, renderedBalls);
+    });
+    ctx.drawImage(ballsLayer, 0, 0, frame.size.width, frame.size.height);
+  }
+  const d4 = aimNow();
 
   ctx.save();
   ctx.translate(fit.offsetX, fit.offsetY);
   ctx.scale(fit.scale, fit.scale);
-
-  // Рейка (внешний контур).
-  ctx.fillStyle = RAIL_COLOR;
-  ctx.fillRect(-RAIL_WIDTH, -RAIL_WIDTH, OUTER_W, OUTER_H);
-
-  // Сукно игрового поля.
-  ctx.fillStyle = FELT_COLOR;
-  ctx.fillRect(0, 0, TABLE_LENGTH, TABLE_WIDTH);
-
-  // Лузы-выемки.
-  for (const pocket of geometry.pockets) {
-    ctx.beginPath();
-    ctx.moveTo(pocket.noseA.x, pocket.noseA.y);
-    ctx.lineTo(pocket.backA.x, pocket.backA.y);
-    ctx.lineTo(pocket.backB.x, pocket.backB.y);
-    ctx.lineTo(pocket.noseB.x, pocket.noseB.y);
-    ctx.closePath();
-    ctx.fillStyle = POCKET_COLOR;
-    ctx.fill();
-  }
-
-  // Подушки-носы и облицовки.
-  ctx.lineWidth = 3;
-  ctx.strokeStyle = "#123f2c";
-  for (const segment of geometry.segments) {
-    if (segment.kind !== "nose") continue;
-    ctx.beginPath();
-    ctx.moveTo(segment.a.x, segment.a.y);
-    ctx.lineTo(segment.b.x, segment.b.y);
-    ctx.stroke();
-  }
-
-  // Разметка: пятна и ромбы на бортах.
-  ctx.fillStyle = MARKING_COLOR;
-  for (const spot of geometry.spots) fillCircle(ctx, spot, 5, MARKING_COLOR);
-  for (const sight of geometry.railSights) fillCircle(ctx, sight, 3, MARKING_COLOR);
-
-  // Шары.
-  for (const ball of state.balls) {
-    if (!ball.active) continue;
-    drawBall(ctx, ball);
+  if (aim === null && !view.overlayAim) {
+    const pxPerMm = fit.scale * frame.dpr;
+    for (const { ball, pose } of renderedBalls) drawBall(ctx, ball, pose, pxPerMm);
   }
 
   // Прицел поверх шаров (точки, гость, векторы) — чтобы не прятался под ними.
-  if (aim !== null) drawAim(ctx, state, aim);
+  if (aim !== null) drawAim(ctx, state, view);
+  const d5 = aimNow();
 
   // Стрелки «можно двигать» вокруг битка.
   if (view.arrows) {
@@ -269,5 +397,43 @@ export function drawBilliards(
     if (cue) drawMoveArrows(ctx, { x: cue.x, y: cue.y }, view.blink ?? 0, view.hover ?? false);
   }
 
+  ctx.restore();
+  aimLog("render", {
+    cv: [frame.size.width, frame.size.height, frame.dpr],
+    stLayer: Math.round((d1 - d0) * 100) / 100,
+    stBuilt: staticBuilt,
+    stDraw: Math.round((d2 - d1) * 100) / 100,
+    ballsPrep: Math.round((d3 - d2) * 100) / 100,
+    ballsLayer: Math.round((d4 - d3) * 100) / 100,
+    ballsBuilt,
+    aim: Math.round((d5 - d4) * 100) / 100,
+    total: aimSince(d0),
+    pts: view.preview ? view.preview.path.length : 0,
+  });
+}
+
+/**
+ * Прицел на отдельном холсте (overlay): линия, предпросмотр и стрелки. Холст
+ * очищается и перерисовывается каждый кадр — это дёшево, а стол и шары остаются в
+ * основном кэше и не пересобираются при вращении.
+ */
+export function drawAimOverlay(
+  ctx: CanvasRenderingContext2D,
+  size: { readonly width: number; readonly height: number },
+  dpr: number,
+  state: BilliardsState,
+  view: AimView & { readonly arrows?: boolean },
+): void {
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, size.width, size.height);
+  const fit = computeFit(size, FIT_PADDING, view.insets ?? ZERO_INSETS);
+  ctx.save();
+  ctx.translate(fit.offsetX, fit.offsetY);
+  ctx.scale(fit.scale, fit.scale);
+  if (view.aim !== null) drawAim(ctx, state, view);
+  if (view.arrows) {
+    const cue = state.balls.find((b) => b.id === 0 && b.active);
+    if (cue) drawMoveArrows(ctx, { x: cue.x, y: cue.y }, view.blink ?? 0, view.hover ?? false);
+  }
   ctx.restore();
 }

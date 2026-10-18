@@ -10,7 +10,7 @@ export {
 } from "./codec";
 export type { Invite, InviteRole, InviteSdp, DecodeInviteOptions } from "./codec";
 export { PROTOCOL_VERSION, applyNetMessage } from "./protocol";
-export type { NetApi, NetMessage } from "./protocol";
+export type { MoveMeta, NetApi, NetMessage } from "./protocol";
 export { applyLobbyMessage } from "./lobby-protocol";
 export type { LobbyApi, LobbyMessage, LobbyPlayer } from "./lobby-protocol";
 export { LobbyRoster } from "./lobby-roster";

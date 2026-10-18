@@ -13,8 +13,8 @@ export const BALL_RADIUS = BALL_DIAMETER / 2;
 /** Масса шара, кг. */
 export const BALL_MASS = 0.163;
 
-/** Рейка: от носа до внешнего края, мм. */
-export const RAIL_WIDTH = 101.6;
+/** Рейка: от носа до внешнего края, мм. Шире канона (101.6): дерево до края луз, хром выступает. */
+export const RAIL_WIDTH = 130;
 /** Подушка: от пера до носа, мм. */
 export const CUSHION_WIDTH = 50.8;
 /** Высота рейки, мм (63.5 % диаметра шара). */
@@ -24,10 +24,10 @@ export const RAIL_HEIGHT = 36.3;
 export const CORNER_MOUTH = 127.0;
 /** Рот боковой лузы, мм (BCA 5½″). */
 export const SIDE_MOUTH = 139.7;
-/** Угол облицовки угловой лузы, градусы. */
-export const CORNER_FACING_DEG = 142;
-/** Угол облицовки боковой лузы, градусы (BCA 103°±2°, взято значение источника). */
-export const SIDE_FACING_DEG = 104;
+/** Насколько центр отверстия угловой лузы глубже линии проёма, мм (только рисунок). */
+export const CORNER_DEPTH = 17;
+/** Насколько центр отверстия боковой лузы глубже линии проёма, мм (только рисунок). */
+export const SIDE_DEPTH = 12;
 
 /** Головное пятно (здесь ставится биток), мм. */
 export const HEAD_SPOT = { x: 0.25 * TABLE_LENGTH, y: 0.5 * TABLE_WIDTH } as const;
@@ -63,11 +63,9 @@ export const BALL_COLORS: readonly BallColorSpec[] = [
 ];
 
 /** Цвет сукна (схема). */
-export const FELT_COLOR = "#1f6b4a";
+export const FELT_COLOR = "#1b5e3c";
 /** Цвет рейки (схема). */
-export const RAIL_COLOR = "#5a3a22";
-/** Цвет лузы (схема). */
-export const POCKET_COLOR = "#141414";
+export const RAIL_COLOR = "#4a2f1b";
 /** Цвет фона вокруг стола (схема): тёмный, не в тон сукну. */
 export const BACKDROP_COLOR = "#0b0f10";
 /** Цвет разметки (схема). */
@@ -83,18 +81,34 @@ export const PHYS_DT = 1 / 240;
 export const MU_ROLL = 0.01;
 /** Замедление качения, мм/с². */
 export const ROLL_DECEL = MU_ROLL * GRAVITY;
+/** Коэффициент трения скольжения сукна (Dr. Dave: 0.15–0.4, типично 0.2). */
+export const MU_SLIDE = 0.2;
+/** Скорость точки контакта ниже этой — шар катится (сухое трение держит), мм/с. */
+export const ROLL_SNAP_SPEED = 25;
+/** Затухание бокового вращения (ось z, нормаль стола), рад/с² (Dr. Dave: 5–15). */
+export const SPIN_DECAY = 8;
+/** Угловая скорость ниже этой — шар визуально стоит (покой включает спин), рад/с. */
+export const SPIN_REST_SPEED = 0.5;
+/** Зацеп борта за боковое вращение: доля wz·R, уходящая в касательную скорость. */
+export const CUSHION_SPIN_GRAB = 0.25;
+/** Сколько бокового вращения остаётся после контакта с бортом. */
+export const CUSHION_SPIN_KEEP = 0.5;
 /** Реституция при соударении шаров. */
 export const E_BALL = 0.94;
+/** Трение в контакте шар–шар (даёт срезку/бросок; Dr. Dave: 0.03–0.08). */
+export const MU_BALL = 0.05;
 /** Реституция при отскоке от носа (подушки). */
 export const E_RAIL = 0.78;
 /** Реституция при отскоке от облицовки лузы. */
 export const E_FACING = 0.78;
-/** Доля сохранённой касательной скорости у носа. */
-export const TANG_KEEP_RAIL = 0.9;
+/** Доля сохранённой касательной скорости у носа (борт цепляет: 0.78 вместо 0.9). */
+export const TANG_KEEP_RAIL = 0.78;
 /** Доля сохранённой касательной скорости у облицовки. */
 export const TANG_KEEP_FACING = 0.7;
 /** Порог скорости покоя, мм/с (ниже — шар останавливается). */
 export const SLEEP_SPEED = 2;
+/** Затягивание шара к проёму за линией горла, мм/с² (шар над лузой не застревает в зеве). */
+export const POCKET_PULL = 2000;
 /** Максимум субшагов на один шаг физики. */
 export const SUBSTEP_CAP = 16;
 /** Максимальное смещение за субшаг, доля радиуса (против туннелирования). */

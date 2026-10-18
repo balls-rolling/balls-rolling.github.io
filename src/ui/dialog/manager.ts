@@ -31,6 +31,7 @@ interface StackEntry extends Disposable {
 
 export class DialogManager {
   readonly #stack = new DialogStack<StackEntry>();
+  readonly #backHandlers = new WeakMap<StackEntry, () => boolean>();
   readonly #element = shallowRef<HTMLDialogElement | null>(null);
   readonly #screens = shallowRef<readonly ScreenSpec[]>([]);
   // Ссылка на обработчик `cancel`: без неё его нельзя снять в `detach`.
@@ -112,6 +113,10 @@ export class DialogManager {
    * случая, когда корень помечен `closable`: тогда «назад» закрывает диалог.
    */
   back(): void {
+    const top = this.#stack.top;
+    // Экран может перехватить «Назад» для внутреннего меню (например,
+    // преднастройка игры). Если он обработал действие, стек диалогов не меняем.
+    if (top && this.#backHandlers.get(top)?.() === true) return;
     if (this.#stack.depth <= 1) {
       if (this.#screens.value[0]?.closable) this.close();
       return;
@@ -119,6 +124,20 @@ export class DialogManager {
     const removed = this.#stack.back();
     if (!removed) return;
     this.#sync();
+  }
+
+  /**
+   * Зарегистрировать внутреннюю навигацию для текущего экрана. Обработчик
+   * вызывается только пока этот экран верхний; нижний экран лобби не перехватит.
+   * Вернуть функцию отписки при размонтировании экрана.
+   */
+  registerBackHandler(handler: () => boolean): () => void {
+    const owner = this.#stack.top;
+    if (!owner) return () => undefined;
+    this.#backHandlers.set(owner, handler);
+    return () => {
+      if (this.#backHandlers.get(owner) === handler) this.#backHandlers.delete(owner);
+    };
   }
 
   /** Закрыть диалог целиком, освободив все экраны. */

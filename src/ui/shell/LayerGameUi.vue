@@ -73,17 +73,23 @@ function measure(): void {
   const right = rectOf(".zones__item--right");
   const menu = rectOf(".session-host");
   const players = rectOf(".players");
+  // Колокольчик — fixed в правом верхнем углу: боковая рейка игры иначе
+  // заползает под него (как и под меню). Верхняя панель — во всю ширину,
+  // боковые живут между верхней и нижней.
+  const bell = rectOf(".layer-game-ui > .bell");
 
   const bottomOf = (rect: DOMRect | null): number =>
     rect ? Math.max(0, Math.round(rect.bottom - rootRect.top)) : 0;
 
   const insets: ZoneInsets = {
-    top: Math.max(bottomOf(menu), bottomOf(players), bottomOf(top)),
+    top: Math.max(bottomOf(menu), bottomOf(players), bottomOf(top), bottomOf(bell)),
     bottom: bottom ? Math.max(0, Math.round(rootRect.bottom - bottom.top)) : 0,
     left: left ? Math.max(0, Math.round(left.right - rootRect.left)) : 0,
     right: right ? Math.max(0, Math.round(rootRect.right - right.left)) : 0,
   };
-  ui.insets = insets;
+  // Игре — в поле зон (читает каждый кадр), UI слота — в реактивный ref:
+  // измерение приходит после монтирования игры, подписчики должны узнать.
+  zonesSlot.setInsets(insets);
   // Зоны начинаются под системной панелью (зазор — `--space-3`), а не поверх неё.
   // Пусто — панели нет, и сетка зон берёт свой обычный отступ.
   const playersBottom = Math.max(bottomOf(menu), bottomOf(players));

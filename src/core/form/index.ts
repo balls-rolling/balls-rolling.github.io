@@ -10,6 +10,7 @@ export type {
   FormControl,
   FormGroup,
   FormHandle,
+  FormNavigation,
   FormNode,
   FormOrientation,
   FormSchema,

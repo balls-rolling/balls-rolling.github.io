@@ -29,3 +29,6 @@ coverage
 .eslintcache
 .stylelintcache
 *.tsbuildinfo
+
+# Справочные материалы для оформления стола — вне репозитория, держим локально.
+/reference
